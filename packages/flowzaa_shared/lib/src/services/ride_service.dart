@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/lat_lng_point.dart';
@@ -19,9 +21,16 @@ class RideService {
   /// the moment before the function runs (server value wins on next snapshot).
   Future<String> createRide(Ride ride) async {
     final ref = Refs.rides.doc();
-    await ref.set(ride.toCreateMap());
+    final payload = ride.toCreateMap();
+    // Ensure a Start-PIN exists even before the Cloud Function stamps the
+    // authoritative one (so the flow works on the free tier too).
+    payload['startPin'] ??= _randomPin();
+    await ref.set(payload);
     return ref.id;
   }
+
+  static String _randomPin() =>
+      (1000 + Random().nextInt(9000)).toString();
 
   /// Streams a single ride document.
   Stream<Ride?> watchRide(String rideId) => Refs.ride(rideId).snapshots().map(

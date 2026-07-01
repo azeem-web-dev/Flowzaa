@@ -38,8 +38,8 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 
-# Generated Firebase config (regenerate with flutterfire configure)
-**/lib/firebase_options.dart
+# Note: lib/firebase_options.dart IS committed (placeholder values); regenerate
+# real values with `flutterfire configure --project=flowzaa-7c9d8`.
 
 # Misc
 .DS_Store
