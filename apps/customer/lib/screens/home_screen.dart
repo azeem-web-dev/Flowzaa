@@ -1,7 +1,8 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
@@ -20,9 +21,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  GoogleMapController? _map;
+  final MapController _map = MapController();
   LatLng _center = _hyderabad;
-  bool _locating = true;
+  bool _hasLocation = false;
 
   @override
   void initState() {
@@ -36,12 +37,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       setState(() {
         _center = p.toLatLng();
-        _locating = false;
+        _hasLocation = true;
       });
-      _map?.animateCamera(CameraUpdate.newLatLngZoom(_center, 15));
+      _map.move(_center, 15);
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _locating = false); // fall back to Hyderabad
+      // Fall back to Hyderabad.
     }
   }
 
@@ -64,18 +64,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition:
-                CameraPosition(target: _center, zoom: 15),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            onMapCreated: (c) {
-              _map = c;
-              if (!_locating) {
-                c.animateCamera(CameraUpdate.newLatLngZoom(_center, 15));
-              }
-            },
+          FlutterMap(
+            mapController: _map,
+            options: MapOptions(
+              initialCenter: _center,
+              initialZoom: 15,
+              interactionOptions:
+                  const InteractionOptions(flags: InteractiveFlag.all),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.flowzaa.customer',
+              ),
+              if (_hasLocation)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _center,
+                      width: 24,
+                      height: 24,
+                      child: const _MyLocationDot(),
+                    ),
+                  ],
+                ),
+            ],
           ),
           // Top bar: menu + greeting.
           SafeArea(
@@ -202,6 +216,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A blue "my location" dot marker (replaces Google's myLocationEnabled).
+class _MyLocationDot extends StatelessWidget {
+  const _MyLocationDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
     );
   }

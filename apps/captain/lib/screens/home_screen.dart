@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
@@ -20,7 +21,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   StreamSubscription<LatLngPoint>? _positionSub;
   StreamSubscription<List<Ride>>? _requestsSub;
 
@@ -33,7 +34,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void dispose() {
     _positionSub?.cancel();
     _requestsSub?.cancel();
-    _mapController?.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -79,7 +80,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (active != null) {
         rides.updateCaptainLocation(active.id, p);
       }
-      _mapController?.animateCamera(CameraUpdate.newLatLng(p.toLatLng()));
+      _mapController.move(p.toLatLng, _mapController.camera.zoom);
       if (mounted) setState(() {});
     });
   }
@@ -168,9 +169,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildHome(Captain captain) {
     final online = captain.isOnline;
-    final myLatLng = _myLocation?.toLatLng() ??
+    final myLatLng = _myLocation?.toLatLng ??
         (captain.location != null
-            ? captain.location!.toLatLng()
+            ? captain.location!.toLatLng
             : const LatLng(12.9716, 77.5946)); // Bengaluru fallback
 
     return Scaffold(
@@ -183,21 +184,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Expanded(
               child: Stack(
                 children: [
-                  GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: myLatLng,
-                      zoom: 15,
-                    ),
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: false,
-                    zoomControlsEnabled: false,
-                    onMapCreated: (c) => _mapController = c,
-                    markers: {
-                      Marker(
-                        markerId: const MarkerId('me'),
-                        position: myLatLng,
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: myLatLng,
+                      initialZoom: 15,
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all,
                       ),
-                    },
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.flowzaa.captain',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: myLatLng,
+                            width: 44,
+                            height: 44,
+                            child: const Icon(
+                              Icons.two_wheeler,
+                              color: AppColors.primary,
+                              size: 36,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   if (online && _incoming.isNotEmpty)
                     _requestsSheet(captain),

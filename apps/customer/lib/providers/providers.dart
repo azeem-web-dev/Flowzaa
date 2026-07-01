@@ -1,12 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flowzaa_shared/flowzaa_shared.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-/// Google Maps / Places API key, read from the bundled .env asset.
-final mapsApiKeyProvider = Provider<String>((ref) {
-  return dotenv.maybeGet('MAPS_API_KEY') ?? 'YOUR_MAPS_API_KEY';
-});
 
 // ---- Services -----------------------------------------------------------
 
@@ -19,9 +13,11 @@ final locationServiceProvider =
 
 final fcmServiceProvider = Provider<FcmService>((ref) => FcmService());
 
-final mapsServiceProvider = Provider<MapsService>((ref) {
-  return MapsService(apiKey: ref.watch(mapsApiKeyProvider));
-});
+/// Geocoding + routing gateway.
+///
+/// Dev: free OpenStreetMap stack (no key). For production with a Google
+/// billing key, swap to: `MapsService(apiKey: <key>)`.
+final geoGatewayProvider = Provider<GeoGateway>((ref) => OsmGeoGateway());
 
 // ---- Auth ---------------------------------------------------------------
 

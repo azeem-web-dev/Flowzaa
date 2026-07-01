@@ -57,7 +57,7 @@ class _DestinationSearchScreenState
   Future<void> _prefillPickup() async {
     try {
       final addr =
-          await ref.read(mapsServiceProvider).reverseGeocode(widget.origin);
+          await ref.read(geoGatewayProvider).reverseGeocode(widget.origin);
       if (!mounted) return;
       if (addr.isNotEmpty) {
         _pickupCtrl.text = addr;
@@ -84,7 +84,7 @@ class _DestinationSearchScreenState
   Future<void> _search(String input) async {
     setState(() => _busy = true);
     try {
-      final results = await ref.read(mapsServiceProvider).autocomplete(
+      final results = await ref.read(geoGatewayProvider).autocomplete(
             input,
             near: widget.origin,
           );
@@ -102,7 +102,7 @@ class _DestinationSearchScreenState
     setState(() => _busy = true);
     try {
       final resolved =
-          await ref.read(mapsServiceProvider).placeDetails(s.placeId);
+          await ref.read(geoGatewayProvider).placeDetails(s.placeId);
       final point = resolved.point.copyWith(address: resolved.address);
       if (_active == _Field.pickup) {
         _pickupPoint = point;
@@ -132,7 +132,7 @@ class _DestinationSearchScreenState
     setState(() => _busy = true);
     try {
       final route =
-          await ref.read(mapsServiceProvider).route(pickup, drop);
+          await ref.read(geoGatewayProvider).route(pickup, drop);
       if (!mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => RideOptionsScreen(

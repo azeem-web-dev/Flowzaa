@@ -1,7 +1,7 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
@@ -25,7 +25,7 @@ class RideOptionsScreen extends ConsumerStatefulWidget {
 }
 
 class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
-  GoogleMapController? _map;
+  final MapController _map = MapController();
   VehicleType _selected = VehicleType.bike;
   PaymentMethod _payment = PaymentMethod.cash;
   bool _booking = false;
@@ -38,45 +38,43 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
     VehicleType.parcel: 5,
   };
 
-  Set<Polyline> _polylines() {
+  List<Polyline> _polylines() {
     final encoded = widget.route.polyline;
-    if (encoded == null || encoded.isEmpty) return {};
-    final pts = Geo.decodePolyline(encoded).map((p) => p.toLatLng()).toList();
-    return {
+    if (encoded == null || encoded.isEmpty) return [];
+    return [
       Polyline(
-        polylineId: const PolylineId('route'),
-        points: pts,
+        points: decodeToLatLng(encoded),
         color: AppColors.primary,
-        width: 5,
+        strokeWidth: 5,
       ),
-    };
+    ];
   }
 
-  Set<Marker> _markers() => {
+  List<Marker> _markers() => [
         Marker(
-          markerId: const MarkerId('pickup'),
-          position: widget.pickup.toLatLng(),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen),
-          infoWindow: const InfoWindow(title: 'Pickup'),
+          point: widget.pickup.toLatLng(),
+          width: 44,
+          height: 44,
+          child: const Icon(Icons.trip_origin, color: AppColors.primary),
         ),
         Marker(
-          markerId: const MarkerId('drop'),
-          position: widget.dropoff.toLatLng(),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: 'Drop'),
+          point: widget.dropoff.toLatLng(),
+          width: 44,
+          height: 44,
+          child: const Icon(Icons.location_on, color: AppColors.danger),
         ),
-      };
+      ];
 
   void _fitBounds() {
-    final map = _map;
-    if (map == null) return;
-    final bounds = boundsFor([
-      widget.pickup.toLatLng(),
-      widget.dropoff.toLatLng(),
-    ]);
-    map.animateCamera(CameraUpdate.newLatLngBounds(bounds, 80));
+    _map.fitCamera(
+      CameraFit.bounds(
+        bounds: boundsFor([
+          widget.pickup.toLatLng(),
+          widget.dropoff.toLatLng(),
+        ]),
+        padding: const EdgeInsets.all(60),
+      ),
+    );
   }
 
   Future<void> _book(FareConfig config) async {
@@ -136,19 +134,25 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: widget.pickup.toLatLng(),
-                zoom: 13,
+            child: FlutterMap(
+              mapController: _map,
+              options: MapOptions(
+                initialCenter: widget.pickup.toLatLng(),
+                initialZoom: 13,
+                interactionOptions:
+                    const InteractionOptions(flags: InteractiveFlag.all),
+                onMapReady: () => WidgetsBinding.instance
+                    .addPostFrameCallback((_) => _fitBounds()),
               ),
-              markers: _markers(),
-              polylines: _polylines(),
-              zoomControlsEnabled: false,
-              onMapCreated: (c) {
-                _map = c;
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _fitBounds());
-              },
+              children: [
+                TileLayer(
+                  urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.flowzaa.customer',
+                ),
+                PolylineLayer(polylines: _polylines()),
+                MarkerLayer(markers: _markers()),
+              ],
             ),
           ),
           SafeArea(

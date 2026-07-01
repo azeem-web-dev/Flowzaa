@@ -1,8 +1,8 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/providers.dart';
@@ -19,49 +19,49 @@ class TrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _TrackingScreenState extends ConsumerState<TrackingScreen> {
-  GoogleMapController? _map;
+  final MapController _map = MapController();
   bool _navigatedComplete = false;
 
-  Set<Marker> _markers(Ride ride) {
-    final markers = <Marker>{
+  List<Marker> _markers(Ride ride) {
+    final markers = <Marker>[
       Marker(
-        markerId: const MarkerId('pickup'),
-        position: ride.pickup.toLatLng(),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Pickup'),
+        point: ride.pickup.toLatLng(),
+        width: 44,
+        height: 44,
+        child: const Icon(Icons.trip_origin, color: AppColors.primary),
       ),
       Marker(
-        markerId: const MarkerId('drop'),
-        position: ride.dropoff.toLatLng(),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Drop'),
+        point: ride.dropoff.toLatLng(),
+        width: 44,
+        height: 44,
+        child: const Icon(Icons.location_on, color: AppColors.danger),
       ),
-    };
+    ];
     final cap = ride.captainLocation;
     if (cap != null) {
       markers.add(Marker(
-        markerId: const MarkerId('captain'),
-        position: cap.toLatLng(),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        rotation: cap.heading ?? 0,
-        infoWindow: InfoWindow(title: ride.captainName ?? 'Captain'),
+        point: cap.toLatLng(),
+        width: 44,
+        height: 44,
+        child: Transform.rotate(
+          angle: (cap.heading ?? 0) * 3.1415926535 / 180,
+          child: const Icon(Icons.two_wheeler, color: AppColors.ink),
+        ),
       ));
     }
     return markers;
   }
 
-  Set<Polyline> _polylines(Ride ride) {
+  List<Polyline> _polylines(Ride ride) {
     final encoded = ride.routePolyline;
-    if (encoded == null || encoded.isEmpty) return {};
-    final pts = Geo.decodePolyline(encoded).map((p) => p.toLatLng()).toList();
-    return {
+    if (encoded == null || encoded.isEmpty) return [];
+    return [
       Polyline(
-        polylineId: const PolylineId('route'),
-        points: pts,
+        points: decodeToLatLng(encoded),
         color: AppColors.primary,
-        width: 5,
+        strokeWidth: 5,
       ),
-    };
+    ];
   }
 
   Future<void> _call(String? phone) async {
@@ -125,25 +125,34 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
         // Keep the captain in view when their location updates.
         final cap = ride.captainLocation;
-        if (cap != null && _map != null) {
-          _map!.animateCamera(
-            CameraUpdate.newLatLng(cap.toLatLng()),
-          );
+        if (cap != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _map.move(cap.toLatLng(), _map.camera.zoom);
+          });
         }
 
         return Scaffold(
           body: Stack(
             children: [
               Positioned.fill(
-                child: GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: (cap ?? ride.pickup).toLatLng(),
-                    zoom: 15,
+                child: FlutterMap(
+                  mapController: _map,
+                  options: MapOptions(
+                    initialCenter: (cap ?? ride.pickup).toLatLng(),
+                    initialZoom: 15,
+                    interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.all),
                   ),
-                  markers: _markers(ride),
-                  polylines: _polylines(ride),
-                  zoomControlsEnabled: false,
-                  onMapCreated: (c) => _map = c,
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.flowzaa.customer',
+                    ),
+                    PolylineLayer(polylines: _polylines(ride)),
+                    MarkerLayer(markers: _markers(ride)),
+                  ],
                 ),
               ),
               Align(

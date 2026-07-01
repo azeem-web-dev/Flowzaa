@@ -1,8 +1,9 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/providers.dart';
@@ -17,13 +18,13 @@ class ActiveRideScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   final _pinController = TextEditingController();
   bool _busy = false;
 
   @override
   void dispose() {
-    _mapController?.dispose();
+    _mapController.dispose();
     _pinController.dispose();
     super.dispose();
   }
@@ -106,54 +107,64 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     final polyline = ride.routePolyline;
     final points = <LatLng>[];
     if (polyline != null && polyline.isNotEmpty) {
-      points.addAll(Geo.decodePolyline(polyline).map((p) => p.toLatLng()));
+      points.addAll(decodeToLatLng(polyline));
     }
 
     // Show the leg relevant to the current stage.
     final target = ride.status == RideStatus.ongoing
-        ? ride.dropoff.toLatLng()
-        : ride.pickup.toLatLng();
+        ? ride.dropoff.toLatLng
+        : ride.pickup.toLatLng;
 
-    final markers = <Marker>{
+    final markers = <Marker>[
       Marker(
-        markerId: const MarkerId('pickup'),
-        position: ride.pickup.toLatLng(),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Pickup'),
+        point: ride.pickup.toLatLng,
+        width: 44,
+        height: 44,
+        child: const Icon(Icons.trip_origin,
+            color: AppColors.success, size: 32),
       ),
       Marker(
-        markerId: const MarkerId('drop'),
-        position: ride.dropoff.toLatLng(),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Drop'),
+        point: ride.dropoff.toLatLng,
+        width: 44,
+        height: 44,
+        child: const Icon(Icons.location_on, color: AppColors.danger, size: 36),
       ),
       if (ride.captainLocation != null)
         Marker(
-          markerId: const MarkerId('me'),
-          position: ride.captainLocation!.toLatLng(),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure),
+          point: ride.captainLocation!.toLatLng,
+          width: 44,
+          height: 44,
+          child: const Icon(Icons.two_wheeler,
+              color: AppColors.primary, size: 34),
         ),
-    };
+    ];
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(target: target, zoom: 14),
-      myLocationEnabled: true,
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
-      onMapCreated: (c) => _mapController = c,
-      markers: markers,
-      polylines: points.length < 2
-          ? const {}
-          : {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: target,
+        initialZoom: 14,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.flowzaa.captain',
+        ),
+        if (points.length >= 2)
+          PolylineLayer(
+            polylines: [
               Polyline(
-                polylineId: const PolylineId('route'),
                 points: points,
+                strokeWidth: 4,
                 color: AppColors.primary,
-                width: 5,
               ),
-            },
+            ],
+          ),
+        MarkerLayer(markers: markers),
+      ],
     );
   }
 
@@ -463,11 +474,18 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   Future<void> _navigateTo(LatLngPoint p) async {
-    final uri = Uri.parse(
+    // Prefer the turn-by-turn navigation intent (opens the Google Maps app).
+    final navUri = Uri.parse('google.navigation:q=${p.lat},${p.lng}&mode=d');
+    if (await canLaunchUrl(navUri)) {
+      await launchUrl(navUri);
+      return;
+    }
+    // Fall back to the universal Maps URL in an external app / browser.
+    final webUri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}',
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (await canLaunchUrl(webUri)) {
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
     } else if (mounted) {
       _snack('Cannot open maps');
     }
