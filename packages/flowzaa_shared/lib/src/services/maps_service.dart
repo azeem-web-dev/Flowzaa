@@ -4,24 +4,15 @@ import 'package:http/http.dart' as http;
 
 import '../models/lat_lng_point.dart';
 import '../models/place.dart';
-
-/// Result of a Directions/Distance query used for fare estimation + drawing.
-class RouteInfo {
-  final int distanceMeters;
-  final int durationSeconds;
-  final String? polyline;
-
-  const RouteInfo({
-    required this.distanceMeters,
-    required this.durationSeconds,
-    this.polyline,
-  });
-}
+import 'geo_gateway.dart';
 
 /// Google Maps Platform REST calls: Places autocomplete/details, Directions,
 /// and reverse geocoding. The Maps *widget* lives in the apps; this is the data
 /// layer, shared so fare estimates are identical in both apps.
-class MapsService {
+///
+/// Needs a billing-enabled Google Maps key. For key-free development use
+/// [OsmGeoGateway] instead.
+class MapsService implements GeoGateway {
   MapsService({required this.apiKey, http.Client? client})
       : _client = client ?? http.Client();
 
@@ -31,6 +22,7 @@ class MapsService {
   static const _base = 'https://maps.googleapis.com/maps/api';
 
   /// Autocomplete predictions, biased around [near] when provided.
+  @override
   Future<List<PlaceSuggestion>> autocomplete(
     String input, {
     LatLngPoint? near,
@@ -60,6 +52,7 @@ class MapsService {
   }
 
   /// Resolve a place_id to coordinates + formatted address.
+  @override
   Future<ResolvedPlace> placeDetails(String placeId) async {
     final uri = Uri.parse('$_base/place/details/json').replace(queryParameters: {
       'place_id': placeId,
@@ -80,6 +73,7 @@ class MapsService {
   }
 
   /// Reverse-geocode a coordinate to a human address (for the pickup pin).
+  @override
   Future<String> reverseGeocode(LatLngPoint p) async {
     final uri = Uri.parse('$_base/geocode/json').replace(queryParameters: {
       'latlng': '${p.lat},${p.lng}',
@@ -93,6 +87,7 @@ class MapsService {
   }
 
   /// Distance + duration + route polyline between two points.
+  @override
   Future<RouteInfo> route(LatLngPoint origin, LatLngPoint dest) async {
     final uri = Uri.parse('$_base/directions/json').replace(queryParameters: {
       'origin': '${origin.lat},${origin.lng}',

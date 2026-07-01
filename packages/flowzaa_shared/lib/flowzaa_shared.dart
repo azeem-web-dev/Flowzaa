@@ -21,8 +21,10 @@ export 'src/services/auth_service.dart';
 export 'src/services/captain_service.dart';
 export 'src/services/fcm_service.dart';
 export 'src/services/firestore_refs.dart';
+export 'src/services/geo_gateway.dart';
 export 'src/services/location_service.dart';
 export 'src/services/maps_service.dart';
+export 'src/services/osm_geo_gateway.dart';
 export 'src/services/ride_service.dart';
 
 // Theme
