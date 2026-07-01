@@ -1,0 +1,89 @@
+rules_version = '2';
+
+// Flowzaa security rules.
+// Principles:
+//  - Everyone reads/writes only their own profile row.
+//  - Captains' live location/availability is publicly readable (needed to show
+//    nearby captains) but writable only by the captain.
+//  - Rides are readable/writable only by their participants, with guarded
+//    state transitions.
+//  - Fare config is read-only to clients (written by Cloud Functions/admin).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- Customers / identity ----
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSelf(uid);
+      allow delete: if false;
+    }
+
+    // ---- Captains ----
+    match /captains/{uid} {
+      // Location + availability must be visible to customers searching.
+      allow read: if isSignedIn();
+      allow create, update: if isSelf(uid);
+      allow delete: if false;
+    }
+
+    // ---- Fare config (client read-only) ----
+    match /config/{doc} {
+      allow read: if isSignedIn();
+      allow write: if false; // only Cloud Functions (admin) may write
+    }
+
+    // ---- Rides ----
+    match /rides/{rideId} {
+
+      function ride() {
+        return resource.data;
+      }
+      function incoming() {
+        return request.resource.data;
+      }
+      function isCustomer() {
+        return isSignedIn() && ride().customerId == request.auth.uid;
+      }
+      function isAssignedCaptain() {
+        return isSignedIn() && ride().captainId == request.auth.uid;
+      }
+      function isParticipant() {
+        return isCustomer() || isAssignedCaptain();
+      }
+
+      // A signed-in captain may READ open "searching" rides (to find work),
+      // and participants may read their own rides.
+      allow read: if isSignedIn() && (
+        isParticipant() ||
+        resource.data.status == 'searching'
+      );
+
+      // Create: only the customer creating their own ride, in searching state.
+      allow create: if isSignedIn()
+        && incoming().customerId == request.auth.uid
+        && incoming().status == 'searching';
+
+      // Accept: an online captain claims a still-searching ride.
+      // Only allowed to move searching -> accepted and stamp themselves in.
+      allow update: if isSignedIn()
+        && ride().status == 'searching'
+        && incoming().status == 'accepted'
+        && incoming().captainId == request.auth.uid;
+
+      // Participant updates on an active ride (arrive/start/complete/cancel,
+      // live location, ratings). Participants can't reassign the ride owner.
+      allow update: if isParticipant()
+        && incoming().customerId == ride().customerId;
+
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,48 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.pub-cache/
+.pub/
+pubspec.lock        # apps: regenerate; keep for app repos if you prefer
+coverage/
+
+# Android
+apps/*/android/.gradle/
+apps/*/android/app/debug/
+apps/*/android/app/profile/
+apps/*/android/app/release/
+apps/*/android/local.properties
+apps/*/android/key.properties
+**/android/app/google-services.json
+
+# iOS
+apps/*/ios/Pods/
+apps/*/ios/.symlinks/
+apps/*/ios/Flutter/Flutter.framework
+apps/*/ios/Flutter/Flutter.podspec
+**/ios/Runner/GoogleService-Info.plist
+
+# Secrets & env
+.env
+*.env
+!.env.example
+
+# Firebase
+firebase/functions/node_modules/
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Generated Firebase config (regenerate with flutterfire configure)
+**/lib/firebase_options.dart
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+*.log
