@@ -30,24 +30,30 @@ bold "Setting active project to $PROJECT"
 gcloud config set project "$PROJECT" -q
 
 # ---------------------------------------------------------------------------
-bold "1/6  Enabling Google Cloud APIs (this can take a minute)"
-gcloud services enable \
-  firestore.googleapis.com \
-  identitytoolkit.googleapis.com \
-  cloudfunctions.googleapis.com \
-  cloudbuild.googleapis.com \
-  run.googleapis.com \
-  eventarc.googleapis.com \
-  fcm.googleapis.com \
-  firebasemessaging.googleapis.com \
-  apikeys.googleapis.com \
-  maps-android-backend.googleapis.com \
-  maps-ios-backend.googleapis.com \
-  places-backend.googleapis.com \
-  directions-backend.googleapis.com \
-  distance-matrix-backend.googleapis.com \
-  geocoding-backend.googleapis.com \
-  -q && ok "APIs enabled"
+bold "1/6  Enabling Google Cloud APIs (one at a time, so one failure can't block the rest)"
+APIS=(
+  firestore.googleapis.com
+  identitytoolkit.googleapis.com
+  cloudfunctions.googleapis.com
+  cloudbuild.googleapis.com
+  run.googleapis.com
+  eventarc.googleapis.com
+  fcm.googleapis.com
+  apikeys.googleapis.com
+  maps-android-backend.googleapis.com
+  maps-ios-backend.googleapis.com
+  places-backend.googleapis.com
+  directions-backend.googleapis.com
+  distance-matrix-backend.googleapis.com
+  geocoding-backend.googleapis.com
+)
+for api in "${APIS[@]}"; do
+  if gcloud services enable "$api" -q 2>/dev/null; then
+    ok "enabled $api"
+  else
+    warn "could not enable $api (will retry on next run / may need Blaze)"
+  fi
+done
 
 # ---------------------------------------------------------------------------
 bold "2/6  Creating Firestore database ($REGION, native mode)"

@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flowzaa_shared/flowzaa_shared.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,9 +18,15 @@ Future<void> main() async {
     // Ignore: MAPS_API_KEY is baked into the native manifests as a fallback.
   }
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // On Android/iOS, Firebase auto-configures from the native google-services
+  // files, so no generated options are needed. Web still needs explicit options.
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } else {
+    await Firebase.initializeApp();
+  }
 
   runApp(const ProviderScope(child: FlowzaaCaptainApp()));
 }
