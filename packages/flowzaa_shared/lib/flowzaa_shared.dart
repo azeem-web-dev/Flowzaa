@@ -37,7 +37,9 @@ export 'src/utils/formatters.dart';
 export 'src/utils/geo.dart';
 
 // Widgets
+export 'src/widgets/anim.dart';
 export 'src/widgets/info_pill.dart';
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/rating_stars.dart';
+export 'src/widgets/vehicle_icon.dart';
 export 'src/widgets/vehicle_type_tile.dart';

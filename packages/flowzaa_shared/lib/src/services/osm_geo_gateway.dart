@@ -7,7 +7,8 @@ import '../models/place.dart';
 import 'geo_gateway.dart';
 
 /// Free, key-free geocoding + routing for development, backed by:
-///  - OpenStreetMap **Nominatim** for search & reverse geocoding
+///  - **Photon** (komoot) for typo-tolerant, as-you-type place search
+///  - OpenStreetMap **Nominatim** for reverse geocoding (and search fallback)
 ///  - **OSRM** (public demo server) for driving routes
 ///
 /// No API key or billing required. These are shared community servers with
@@ -22,6 +23,7 @@ class OsmGeoGateway implements GeoGateway {
   /// Nominatim's usage policy requires a descriptive User-Agent.
   final String userAgent;
 
+  static const _photon = 'https://photon.komoot.io';
   static const _nominatim = 'https://nominatim.openstreetmap.org';
   static const _osrm = 'https://router.project-osrm.org';
 
@@ -34,10 +36,73 @@ class OsmGeoGateway implements GeoGateway {
     String country = 'in',
   }) async {
     if (input.trim().isEmpty) return [];
+    // Photon first: purpose-built for autocomplete (typo-tolerant, ranked,
+    // location-biased). Fall back to Nominatim if it's unavailable.
+    try {
+      final results = await _photonSearch(input, near: near);
+      if (results.isNotEmpty) return results;
+    } catch (_) {
+      // fall through to Nominatim
+    }
+    return _nominatimSearch(input, country: country);
+  }
+
+  Future<List<PlaceSuggestion>> _photonSearch(
+    String input, {
+    LatLngPoint? near,
+  }) async {
+    final uri = Uri.parse('$_photon/api/').replace(queryParameters: {
+      'q': input,
+      'limit': '8',
+      'lang': 'en',
+      // Bias results towards the user's position so "market" finds the one
+      // nearby, not one 800 km away.
+      if (near != null) 'lat': '${near.lat}',
+      if (near != null) 'lon': '${near.lng}',
+    });
+    final res = await _client.get(uri, headers: _headers);
+    if (res.statusCode != 200) return [];
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final features = (body['features'] as List?) ?? [];
+    final seen = <String>{};
+    final out = <PlaceSuggestion>[];
+    for (final raw in features) {
+      final f = (raw as Map).cast<String, dynamic>();
+      final props = ((f['properties'] as Map?) ?? {}).cast<String, dynamic>();
+      final coords =
+          (((f['geometry'] as Map?) ?? {})['coordinates'] as List?) ?? [0, 0];
+      final lon = (coords[0] as num).toDouble();
+      final lat = (coords[1] as num).toDouble();
+      final name = props['name'] as String? ?? '';
+      if (name.isEmpty) continue;
+      final secondary = [
+        props['street'],
+        props['district'],
+        props['city'],
+        props['state'],
+      ].whereType<String>().where((s) => s.isNotEmpty && s != name).join(', ');
+      final key = '$name|$secondary';
+      if (!seen.add(key)) continue; // dedupe near-identical entries
+      final address = secondary.isEmpty ? name : '$name, $secondary';
+      out.add(PlaceSuggestion(
+        // placeId encodes coords + address: placeDetails stays offline.
+        placeId: '$lat|$lon|$address',
+        primaryText: name,
+        secondaryText: secondary,
+      ));
+    }
+    return out;
+  }
+
+  Future<List<PlaceSuggestion>> _nominatimSearch(
+    String input, {
+    String country = 'in',
+  }) async {
     final uri = Uri.parse('$_nominatim/search').replace(queryParameters: {
       'q': input,
       'format': 'jsonv2',
       'addressdetails': '1',
+      'dedupe': '1',
       'limit': '6',
       if (country.isNotEmpty) 'countrycodes': country,
     });
@@ -53,8 +118,6 @@ class OsmGeoGateway implements GeoGateway {
       final primary = parts.isNotEmpty ? parts.first.trim() : display;
       final secondary =
           parts.length > 1 ? parts.sublist(1).join(',').trim() : '';
-      // Encode coords + address into the placeId so placeDetails needs no
-      // extra network call (keeps the GeoGateway contract with one round-trip).
       final placeId = '$lat|$lon|$display';
       return PlaceSuggestion(
         placeId: placeId,

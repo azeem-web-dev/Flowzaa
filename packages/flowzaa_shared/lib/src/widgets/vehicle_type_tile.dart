@@ -4,8 +4,9 @@ import '../models/vehicle_type.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../utils/formatters.dart';
+import 'vehicle_icon.dart';
 
-/// A selectable ride-type row showing the emoji, name, capacity, ETA and fare.
+/// A selectable ride-type row showing the icon, name, capacity, ETA and fare.
 class VehicleTypeTile extends StatelessWidget {
   final VehicleType type;
   final double fare;
@@ -40,7 +41,7 @@ class VehicleTypeTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(type.emoji, style: const TextStyle(fontSize: 30)),
+            VehicleIcon(type: type, size: 46, selected: selected),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
