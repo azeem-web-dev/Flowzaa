@@ -129,15 +129,6 @@ class _CodeInputState extends State<CodeInput> {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: borderColor, width: active || filled ? 1.6 : 1),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.15),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
       ),
       child: Text(
         filled ? text[i] : '',

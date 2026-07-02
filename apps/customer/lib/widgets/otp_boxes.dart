@@ -118,19 +118,10 @@ class OtpBoxesState extends State<OtpBoxes> {
           color: active
               ? AppColors.primary
               : filled
-                  ? AppColors.primary.withOpacity(0.45)
+                  ? AppColors.primary
                   : AppColors.line,
           width: active ? 1.8 : 1.2,
         ),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.15),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
       ),
       child: Text(
         filled ? text[i] : '',

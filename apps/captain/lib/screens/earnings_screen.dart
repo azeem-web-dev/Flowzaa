@@ -84,12 +84,12 @@ class EarningsScreen extends ConsumerWidget {
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.accent.withOpacity(0.12),
+        color: AppColors.primary.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          const Icon(Icons.savings_outlined, color: AppColors.accent),
+          const Icon(Icons.savings_outlined, color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -112,27 +112,38 @@ class EarningsScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.line),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          InfoPill(
-            icon: Icons.today_rounded,
-            label: 'Today',
-            value: Fmt.rupees(s.today),
-          ),
-          InfoPill(
-            icon: Icons.date_range_rounded,
-            label: 'This Week',
-            value: Fmt.rupees(s.week),
-            color: AppColors.accent,
-          ),
-          InfoPill(
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'All time',
-            value: Fmt.rupees(s.allTime),
-            color: AppColors.info,
-          ),
-        ],
+      child: IntrinsicHeight(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: InfoPill(
+                icon: Icons.today_rounded,
+                label: 'Today',
+                value: Fmt.rupees(s.today),
+              ),
+            ),
+            const VerticalDivider(
+                width: 1, thickness: 1, color: AppColors.line),
+            Expanded(
+              child: InfoPill(
+                icon: Icons.date_range_rounded,
+                label: 'This Week',
+                value: Fmt.rupees(s.week),
+              ),
+            ),
+            const VerticalDivider(
+                width: 1, thickness: 1, color: AppColors.line),
+            Expanded(
+              child: InfoPill(
+                icon: Icons.account_balance_wallet_outlined,
+                label: 'All time',
+                value: Fmt.rupees(s.allTime),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -146,12 +157,12 @@ class EarningsScreen extends ConsumerWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
+              decoration: const BoxDecoration(
+                color: AppColors.iconSurface,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.savings_rounded,
-                  size: 40, color: AppColors.primary),
+                  size: 40, color: AppColors.inkSoft),
             ),
             const SizedBox(height: 14),
             Text('No trips yet — go online!',

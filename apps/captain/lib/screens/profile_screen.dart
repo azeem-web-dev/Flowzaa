@@ -132,11 +132,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         elevation: 0,
       ),
       body: captainAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const Center(child: VehicleLoaderSmall(label: 'Loading…')),
         error: (e, _) => Center(child: Text('$e', style: AppText.bodySoft)),
         data: (captain) {
           if (captain == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: VehicleLoaderSmall(label: 'Loading…'));
           }
           _seed(captain);
           return _body(captain);

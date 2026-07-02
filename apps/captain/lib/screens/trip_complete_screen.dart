@@ -57,29 +57,19 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 32, 20, 8),
                 children: [
-                  Center(
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 550),
-                      curve: Curves.easeOutBack,
-                      builder: (context, t, child) =>
-                          Transform.scale(scale: t, child: child),
-                      child: Container(
+                  const Center(
+                    child: FadeSlideIn(
+                      child: SizedBox(
                         height: 84,
                         width: 84,
-                        decoration: BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.success.withOpacity(0.35),
-                              blurRadius: 22,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.check_rounded,
+                              color: Colors.white, size: 46),
                         ),
-                        child: const Icon(Icons.check_rounded,
-                            color: Colors.white, size: 46),
                       ),
                     ),
                   ),
@@ -148,10 +138,9 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                              color: AppColors.primary.withOpacity(0.3)),
+                          color: AppColors.primary.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.line),
                         ),
                         child: Column(
                           children: [

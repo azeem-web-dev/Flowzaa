@@ -20,11 +20,12 @@ class SheetCard extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.line)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x1A0E1726),
-            blurRadius: 24,
-            offset: Offset(0, -6),
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, -2),
           ),
         ],
       ),

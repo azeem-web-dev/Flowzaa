@@ -159,13 +159,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return captainAsync.when(
       loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: VehicleLoaderSmall(label: 'Loading…')),
       ),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (captain) {
         if (captain == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: VehicleLoaderSmall(label: 'Loading…')),
           );
         }
         return _buildHome(captain);
@@ -225,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (online && _incoming.isNotEmpty)
                     _requestsSheet(captain),
                   if (online && _incoming.isEmpty)
-                    _waitingBanner(),
+                    _waitingBanner(captain),
                 ],
               ),
             ),
@@ -318,67 +318,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.28),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.line),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(14),
+                  color: AppColors.iconSurface,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.account_balance_wallet_rounded,
-                    color: Colors.white, size: 26),
+                    color: AppColors.primary, size: 26),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text('TODAY', style: AppText.label),
+                    const SizedBox(height: 2),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         CountUpRupees(
                           value: s.today,
-                          style: AppText.h1.copyWith(color: Colors.white),
+                          style: AppText.display.copyWith(fontSize: 26),
                         ),
                         const SizedBox(width: 8),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Text(
-                            'today · ${s.todayTrips} '
+                            '${s.todayTrips} '
                             'trip${s.todayTrips == 1 ? '' : 's'}',
-                            style: AppText.label
-                                .copyWith(color: Colors.white70),
+                            style: AppText.bodySoft,
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'This week ${Fmt.rupees(s.week)}  ·  '
+                      'All-time ${Fmt.rupees(s.allTime)}',
+                      style: AppText.bodySoft,
+                    ),
                     const SizedBox(height: 2),
                     Text(
-                      'This week ${Fmt.rupees(s.week)} · '
                       "0% commission — it's all yours.",
-                      style: AppText.label.copyWith(color: Colors.white),
+                      style: AppText.label.copyWith(color: AppColors.primary),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.inkSoft),
             ],
           ),
         ),
@@ -399,26 +396,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
             color: online ? AppColors.onlineGreen : AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: online ? AppColors.onlineGreen : AppColors.line,
             ),
-            boxShadow: online
-                ? [
-                    BoxShadow(
-                      color: AppColors.onlineGreen.withOpacity(0.45),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             children: [
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 transitionBuilder: (child, anim) =>
-                    ScaleTransition(scale: anim, child: child),
+                    FadeTransition(opacity: anim, child: child),
                 child: Icon(
                   online
                       ? Icons.bolt_rounded
@@ -463,39 +451,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _waitingBanner() {
+  Widget _waitingBanner(Captain captain) {
     return Positioned(
       left: 20,
       right: 20,
       bottom: 20,
       child: FadeSlideIn(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.line),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Color(0x0F000000),
+                blurRadius: 10,
+                offset: Offset(0, 2),
               ),
             ],
           ),
-          child: const Column(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RadarPulse(
-                size: 120,
-                color: AppColors.onlineGreen,
-                center: Icon(Icons.sports_motorsports_rounded,
-                    color: Colors.white, size: 24),
+              VehicleLoader(
+                type: captain.vehicleType,
+                width: 220,
+                vehicleSize: 40,
               ),
-              SizedBox(height: 12),
-              Text('Waiting for requests…', style: AppText.title),
-              SizedBox(height: 2),
-              Text("You'll be alerted when a ride comes in",
+              const SizedBox(height: 14),
+              const Text('Waiting for ride requests…', style: AppText.title),
+              const SizedBox(height: 2),
+              const Text("You'll be alerted when a ride comes in",
                   style: AppText.bodySoft),
             ],
           ),
@@ -535,18 +522,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.line),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -582,18 +562,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ],
                         ),
                         if (awayKm != null) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(Icons.near_me_rounded,
-                                  size: 16, color: AppColors.primary),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${awayKm.toStringAsFixed(1)} km away',
-                                style: AppText.label
-                                    .copyWith(color: AppColors.primary),
-                              ),
-                            ],
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.iconSurface,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.near_me_rounded,
+                                    size: 14, color: AppColors.inkSoft),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${awayKm.toStringAsFixed(1)} km away',
+                                  style: AppText.label,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                         const SizedBox(height: 12),

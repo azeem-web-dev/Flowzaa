@@ -53,7 +53,12 @@ class _RideCompleteScreenState extends ConsumerState<RideCompleteScreen> {
         builder: (context, snap) {
           final ride = snap.data;
           if (ride == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: VehicleLoaderSmall(
+                type: VehicleType.bike,
+                label: 'Loading your receipt…',
+              ),
+            );
           }
           final fare = ride.fare;
           final upiId = (ride.captainVehicle?['upiId'] as String?) ?? '';
@@ -62,32 +67,20 @@ class _RideCompleteScreenState extends ConsumerState<RideCompleteScreen> {
             padding: const EdgeInsets.all(20),
             children: [
               const SizedBox(height: 8),
-              // Success check — pops in with a scale + fade.
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.6, end: 1.0),
-                duration: const Duration(milliseconds: 450),
-                curve: Curves.easeOutBack,
-                builder: (context, t, child) => Transform.scale(
-                  scale: t,
-                  child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
-                ),
+              // Flat solid success check — no glow, no scale-up.
+              const FadeSlideIn(
                 child: Center(
-                  child: Container(
+                  child: SizedBox(
                     width: 68,
                     height: 68,
-                    decoration: BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.success.withOpacity(0.35),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.check_rounded,
+                          color: Colors.white, size: 40),
                     ),
-                    child: const Icon(Icons.check_rounded,
-                        color: Colors.white, size: 40),
                   ),
                 ),
               ),
@@ -100,17 +93,8 @@ class _RideCompleteScreenState extends ConsumerState<RideCompleteScreen> {
               const FadeSlideIn(
                 delay: Duration(milliseconds: 160),
                 child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.celebration_rounded,
-                          size: 16, color: AppColors.accent),
-                      SizedBox(width: 6),
-                      Text('Thanks for riding with Flowzaa',
-                          style: AppText.bodySoft),
-                    ],
-                  ),
+                  child: Text('Thanks for riding with Flowzaa',
+                      style: AppText.bodySoft),
                 ),
               ),
               const SizedBox(height: 24),
@@ -135,21 +119,7 @@ class _RideCompleteScreenState extends ConsumerState<RideCompleteScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Total', style: AppText.title),
-                            // Fare number scales in for a satisfying reveal.
-                            TweenAnimationBuilder<double>(
-                              tween: Tween(begin: 0.8, end: 1.0),
-                              duration: const Duration(milliseconds: 500),
-                              curve: Curves.easeOutBack,
-                              builder: (context, t, child) => Transform.scale(
-                                scale: t,
-                                child: Opacity(
-                                  opacity: t.clamp(0.0, 1.0),
-                                  child: child,
-                                ),
-                              ),
-                              child: Text(Fmt.rupees(fare.total),
-                                  style: AppText.price),
-                            ),
+                            Text(Fmt.rupees(fare.total), style: AppText.price),
                           ],
                         ),
                       ),

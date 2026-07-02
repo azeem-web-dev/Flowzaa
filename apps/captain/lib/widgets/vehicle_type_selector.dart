@@ -29,20 +29,11 @@ class VehicleTypeSelector extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 8, 16, 8),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: selected ? type.color : AppColors.line,
                 width: selected ? 1.6 : 1,
               ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: type.color.withOpacity(0.18),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,

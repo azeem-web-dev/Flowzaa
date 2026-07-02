@@ -66,7 +66,7 @@ class _Splash extends StatelessWidget {
               SizedBox(height: 4),
               Text('Captain', style: AppText.bodySoft),
               SizedBox(height: 24),
-              CircularProgressIndicator(),
+              VehicleLoaderSmall(),
             ],
           ),
         ),

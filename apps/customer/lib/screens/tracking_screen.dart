@@ -98,13 +98,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: ride.vehicleType.color.withOpacity(0.35),
-                width: 1.5,
-              ),
+              border: Border.all(color: AppColors.line, width: 1.5),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x33000000),
+                  color: Color(0x1A000000),
                   blurRadius: 8,
                   offset: Offset(0, 2),
                 ),
@@ -114,7 +111,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             child: Icon(
               ride.vehicleType.icon,
               size: 24,
-              color: ride.vehicleType.color,
+              color: AppColors.ink,
             ),
           ),
         ),
@@ -222,7 +219,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
         final ride = snap.data;
         if (ride == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: VehicleLoaderSmall(
+                type: VehicleType.bike,
+                label: 'Loading your trip…',
+              ),
+            ),
           );
         }
 

@@ -1,8 +1,8 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 
-/// The Flowzaa Captain mark — a gradient rounded square with a helmet icon.
-/// Used on the splash and login screens.
+/// The Flowzaa Captain mark — a flat solid teal rounded square with a white
+/// helmet icon. No gradient, no glow.
 class BrandLogo extends StatelessWidget {
   final double size;
 
@@ -14,19 +14,8 @@ class BrandLogo extends StatelessWidget {
       height: size,
       width: size,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDark],
-        ),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(size * 0.3),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Icon(
         Icons.sports_motorsports_rounded,

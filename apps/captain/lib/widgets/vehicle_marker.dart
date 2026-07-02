@@ -24,15 +24,17 @@ class VehicleMarkerDisc extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
-          border: Border.all(color: type.color.withOpacity(0.35), width: 1.5),
+          border: Border.fromBorderSide(
+            BorderSide(color: AppColors.line, width: 1.5),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: Color(0x0F000000),
+              blurRadius: 10,
+              offset: Offset(0, 2),
             ),
           ],
         ),

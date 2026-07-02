@@ -68,7 +68,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
 
     return rideAsync.when(
       loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: VehicleLoaderSmall(label: 'Loading…')),
       ),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
       data: (ride) {
@@ -248,8 +248,13 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   BoxDecoration get _cardDecoration => const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.line)),
         boxShadow: [
-          BoxShadow(color: Color(0x14000000), blurRadius: 16),
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
         ],
       );
 
@@ -528,6 +533,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: () => _navigateTo(_navTarget(ride)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+        ),
         icon: const Icon(Icons.navigation_rounded, size: 20),
         label: const Text('Navigate with Google Maps'),
       ),

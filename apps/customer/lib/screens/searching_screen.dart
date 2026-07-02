@@ -181,16 +181,18 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ] else ...[
-                    RadarPulse(
-                      size: 220,
-                      center: Icon(
-                        (ride?.vehicleType ?? VehicleType.bike).icon,
-                        color: Colors.white,
-                        size: 32,
-                      ),
+                    VehicleLoader(
+                      type: ride?.vehicleType ?? VehicleType.bike,
+                      width: 260,
+                      vehicleSize: 46,
                     ),
                     const SizedBox(height: 28),
-                    const Text('Finding you a captain…', style: AppText.h1),
+                    Text(
+                      'Finding you a nearby '
+                      '${(ride?.vehicleType ?? VehicleType.bike).label}…',
+                      style: AppText.h1,
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 10),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 400),
@@ -211,6 +213,10 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ),
+                    if (ride != null) ...[
+                      const SizedBox(height: 28),
+                      _TripSummary(ride: ride),
+                    ],
                   ],
                   const Spacer(),
                   if (timedOut) ...[
@@ -250,6 +256,68 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// A calm flat summary of the pending trip: route + fare.
+class _TripSummary extends StatelessWidget {
+  final Ride ride;
+  const _TripSummary({required this.ride});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _line(Icons.trip_origin, AppColors.primary,
+              ride.pickup.address ?? 'Pickup'),
+          Container(
+            margin: const EdgeInsets.only(left: 6),
+            width: 2,
+            height: 14,
+            color: AppColors.line,
+          ),
+          _line(Icons.location_on_rounded, AppColors.danger,
+              ride.dropoff.address ?? 'Destination'),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${ride.vehicleType.label} · ${ride.paymentMethod.label}',
+                style: AppText.bodySoft,
+              ),
+              Text(Fmt.rupees(ride.fare.total), style: AppText.price),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(IconData icon, Color color, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: AppText.body,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

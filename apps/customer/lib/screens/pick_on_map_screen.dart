@@ -252,11 +252,12 @@ class _ConfirmCard extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: AppColors.line)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x1A0E1726),
-            blurRadius: 24,
-            offset: Offset(0, -6),
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, -2),
           ),
         ],
       ),
@@ -318,14 +319,15 @@ class _CircleButton extends StatelessWidget {
       child: Container(
         width: 44,
         height: 44,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
           shape: BoxShape.circle,
-          boxShadow: [
+          border: Border.all(color: AppColors.line),
+          boxShadow: const [
             BoxShadow(
-              color: Color(0x22000000),
+              color: Color(0x0F000000),
               blurRadius: 10,
-              offset: Offset(0, 3),
+              offset: Offset(0, 2),
             ),
           ],
         ),
