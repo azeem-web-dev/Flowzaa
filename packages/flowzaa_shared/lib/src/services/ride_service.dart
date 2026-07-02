@@ -129,10 +129,19 @@ class RideService {
     return true;
   }
 
-  Future<void> completeRide(String rideId) => Refs.ride(rideId).update({
-        'status': RideStatus.completed.id,
-        'completedAt': FieldValue.serverTimestamp(),
-      });
+  /// Complete the trip. Pass [captainId] (the caller's uid) so the captain is
+  /// marked available again — normally a Cloud Function's job, but done here
+  /// too so the flow works on the free tier without deployed Functions.
+  Future<void> completeRide(String rideId, {String? captainId}) async {
+    await Refs.ride(rideId).update({
+      'status': RideStatus.completed.id,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
+    if (captainId != null) {
+      await Refs.captain(captainId)
+          .set({'isAvailable': true}, SetOptions(merge: true));
+    }
+  }
 
   /// Push the captain's live position onto the ride during accepted/ongoing.
   Future<void> updateCaptainLocation(String rideId, LatLngPoint p) =>
@@ -140,17 +149,25 @@ class RideService {
 
   // ---- Either side ------------------------------------------------------
 
+  /// Cancel the ride. A captain cancelling should pass their own uid as
+  /// [captainId] to free themselves for new requests (see [completeRide]).
   Future<void> cancelRide({
     required String rideId,
     required String by, // 'customer' | 'captain'
     String? reason,
-  }) =>
-      Refs.ride(rideId).update({
-        'status': RideStatus.cancelled.id,
-        'cancelledBy': by,
-        'cancelReason': reason,
-        'cancelledAt': FieldValue.serverTimestamp(),
-      });
+    String? captainId,
+  }) async {
+    await Refs.ride(rideId).update({
+      'status': RideStatus.cancelled.id,
+      'cancelledBy': by,
+      'cancelReason': reason,
+      'cancelledAt': FieldValue.serverTimestamp(),
+    });
+    if (captainId != null) {
+      await Refs.captain(captainId)
+          .set({'isAvailable': true}, SetOptions(merge: true));
+    }
+  }
 
   Future<void> rateByCustomer(String rideId, int stars, String? review) =>
       Refs.ride(rideId).update({

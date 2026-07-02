@@ -422,7 +422,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   Future<void> _complete(Ride ride) async {
     setState(() => _busy = true);
     try {
-      await ref.read(rideServiceProvider).completeRide(ride.id);
+      await ref.read(rideServiceProvider).completeRide(
+            ride.id,
+            captainId: ref.read(authServiceProvider).uid,
+          );
     } catch (e) {
       if (mounted) _snack('$e');
     } finally {
@@ -456,6 +459,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             rideId: ride.id,
             by: 'captain',
             reason: reason,
+            captainId: ref.read(authServiceProvider).uid,
           );
     } catch (e) {
       if (mounted) _snack('$e');

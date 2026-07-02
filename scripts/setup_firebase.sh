@@ -66,7 +66,7 @@ fi
 # ---------------------------------------------------------------------------
 bold "3/6  Enabling Phone Authentication + test numbers"
 TOKEN="$(gcloud auth print-access-token)"
-curl -s -X PATCH \
+RESP="$(curl -s -w '\n%{http_code}' -X PATCH \
   "https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT}/config?updateMask=signIn.phoneNumber" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
@@ -80,7 +80,17 @@ curl -s -X PATCH \
             }
           }
         }
-      }' >/dev/null && ok "Phone Auth ON (test: +919000000001 / +919000000002 → 123456)"
+      }')"
+HTTP_CODE="$(echo "$RESP" | tail -1)"
+if [ "$HTTP_CODE" = "200" ]; then
+  ok "Phone Auth ON (test: +919000000001 / +919000000002 → 123456)"
+else
+  warn "Phone Auth API returned HTTP $HTTP_CODE:"
+  echo "$RESP" | head -5
+  warn "If it says CONFIGURATION_NOT_FOUND, open the Firebase console once:"
+  warn "  Authentication → Get started → Sign-in method → Phone → Enable"
+  warn "  (that initializes the auth config), then re-run this script."
+fi
 
 # ---------------------------------------------------------------------------
 bold "4/6  Creating a Google Maps API key"

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -65,10 +66,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (!mounted) return;
       // AuthGate (listening to authState) takes over from here.
       Navigator.of(context).popUntil((route) => route.isFirst);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _snack(AuthService.friendlyError(e));
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      _snack('Incorrect or expired code');
+      _snack('Sign-in failed: $e');
     }
   }
 

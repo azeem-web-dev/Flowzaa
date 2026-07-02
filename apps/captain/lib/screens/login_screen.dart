@@ -51,7 +51,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         onError: (e) {
           if (!mounted) return;
           setState(() => _loading = false);
-          _snack(e.message ?? 'Verification failed');
+          _snack(AuthService.friendlyError(e));
         },
       );
     } catch (e) {

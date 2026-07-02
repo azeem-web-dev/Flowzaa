@@ -15,6 +15,10 @@ class AuthService {
 
   final FirebaseAuth _auth;
 
+  /// Firebase console test numbers (Authentication → Phone → test numbers).
+  /// OTP for these is 123456; no SMS is sent and no app verification runs.
+  static const testNumbers = {'+919000000001', '+919000000002'};
+
   User? get currentUser => _auth.currentUser;
   String? get uid => _auth.currentUser?.uid;
   bool get isSignedIn => _auth.currentUser != null;
@@ -30,6 +34,12 @@ class AuthService {
     void Function(PhoneAuthCredential credential)? onAutoVerified,
     Duration timeout = const Duration(seconds: 60),
   }) async {
+    // Test numbers skip device app-verification (Play Integrity/reCAPTCHA),
+    // so dev builds work without registering signing SHAs. Real numbers use
+    // the normal verification flow.
+    await _auth.setSettings(
+      appVerificationDisabledForTesting: testNumbers.contains(phoneNumber),
+    );
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       timeout: timeout,
@@ -106,4 +116,34 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  /// Human-friendly, actionable message for phone-auth failures.
+  static String friendlyError(FirebaseAuthException e) {
+    final raw = e.message ?? '';
+    if (raw.contains('CONFIGURATION_NOT_FOUND')) {
+      return 'Phone sign-in is not enabled for this Firebase project yet. '
+          'In Firebase console: Authentication → Get started → Sign-in '
+          'method → Phone → Enable.';
+    }
+    switch (e.code) {
+      case 'app-not-authorized':
+      case 'missing-client-identifier':
+        return 'This build is not authorized for phone sign-in. Add the '
+            "app's SHA-1 fingerprint in Firebase console (Project settings "
+            '→ Your apps), or use a test number.';
+      case 'invalid-phone-number':
+        return 'That phone number looks invalid. Use a 10-digit mobile number.';
+      case 'too-many-requests':
+      case 'quota-exceeded':
+        return 'Too many attempts from this device. Wait a few minutes and '
+            'try again, or use a test number.';
+      case 'network-request-failed':
+        return 'No internet connection. Check your network and try again.';
+      case 'invalid-verification-code':
+        return 'Incorrect OTP. Check the code and try again.';
+      case 'session-expired':
+        return 'This OTP expired. Request a new code.';
+    }
+    return raw.isEmpty ? 'Verification failed (${e.code}).' : raw;
+  }
 }
