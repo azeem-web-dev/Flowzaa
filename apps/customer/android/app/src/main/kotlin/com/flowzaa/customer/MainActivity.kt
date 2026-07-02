@@ -1,4 +1,4 @@
-package com.flowzaa.flowzaa_customer
+package com.flowzaa.customer
 
 import io.flutter.embedding.android.FlutterActivity
 

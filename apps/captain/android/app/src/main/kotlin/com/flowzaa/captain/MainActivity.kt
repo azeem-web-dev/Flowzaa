@@ -1,4 +1,4 @@
-package com.flowzaa.flowzaa_captain
+package com.flowzaa.captain
 
 import io.flutter.embedding.android.FlutterActivity
 
