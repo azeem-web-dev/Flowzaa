@@ -34,11 +34,14 @@ class AuthService {
     void Function(PhoneAuthCredential credential)? onAutoVerified,
     Duration timeout = const Duration(seconds: 60),
   }) async {
-    // Test numbers skip device app-verification (Play Integrity/reCAPTCHA),
-    // so dev builds work without registering signing SHAs. Real numbers use
-    // the normal verification flow.
+    final isTest = testNumbers.contains(phoneNumber);
+    // On sideloaded release builds the default Play Integrity device check can
+    // hang forever (no callback fires). Forcing the reCAPTCHA flow avoids Play
+    // Integrity entirely and works on any build. Test numbers are fictional, so
+    // they short-circuit before any verification and sign in instantly.
     await _auth.setSettings(
-      appVerificationDisabledForTesting: testNumbers.contains(phoneNumber),
+      appVerificationDisabledForTesting: isTest,
+      forceRecaptchaFlow: true,
     );
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
