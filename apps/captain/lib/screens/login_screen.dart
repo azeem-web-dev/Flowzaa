@@ -33,10 +33,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     setState(() => _loading = true);
     final auth = ref.read(authServiceProvider);
+    // Watchdog: device verification for real numbers can stall silently on
+    // sideloaded dev builds. Don't spin forever — guide the user instead.
+    var handled = false;
+    Future.delayed(const Duration(seconds: 30), () {
+      if (!mounted || handled) return;
+      setState(() => _loading = false);
+      _snack('Taking too long. On this dev build, use the test number '
+          '9000000002 (OTP 123456).');
+    });
     try {
       await auth.sendOtp(
         phoneNumber: _phoneNumber,
         onCodeSent: (verificationId) {
+          handled = true;
           if (!mounted) return;
           setState(() => _loading = false);
           Navigator.of(context).push(
@@ -49,6 +59,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
         },
         onError: (e) {
+          handled = true;
           if (!mounted) return;
           setState(() => _loading = false);
           _snack(AuthService.friendlyError(e));
