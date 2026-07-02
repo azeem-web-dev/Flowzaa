@@ -44,6 +44,15 @@ final fareConfigProvider = StreamProvider<FareConfig>((ref) {
   }).handleError((_) => FareConfig.defaults);
 });
 
+// ---- Ride history --------------------------------------------------------
+
+/// The customer's ride history (terminal + active, newest first, limit 50).
+final rideHistoryProvider = StreamProvider.autoDispose<List<Ride>>((ref) {
+  final uid = ref.watch(authServiceProvider).uid;
+  if (uid == null) return Stream.value(const <Ride>[]);
+  return ref.watch(rideServiceProvider).historyForCustomer(uid);
+});
+
 // ---- Active ride --------------------------------------------------------
 
 /// The customer's current active ride (searching/accepted/arrived/ongoing).

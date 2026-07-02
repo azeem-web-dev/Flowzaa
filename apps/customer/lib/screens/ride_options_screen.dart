@@ -13,11 +13,15 @@ class RideOptionsScreen extends ConsumerStatefulWidget {
   final LatLngPoint dropoff;
   final RouteInfo route;
 
+  /// Ride type preselected from the home shortcut chips.
+  final VehicleType? initialType;
+
   const RideOptionsScreen({
     super.key,
     required this.pickup,
     required this.dropoff,
     required this.route,
+    this.initialType,
   });
 
   @override
@@ -26,9 +30,22 @@ class RideOptionsScreen extends ConsumerStatefulWidget {
 
 class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
   final MapController _map = MapController();
-  VehicleType _selected = VehicleType.bike;
+  late VehicleType _selected = widget.initialType ?? VehicleType.bike;
   PaymentMethod _payment = PaymentMethod.cash;
   bool _booking = false;
+
+  // Parcel details (required when booking a parcel).
+  final _receiverNameCtrl = TextEditingController();
+  final _receiverPhoneCtrl = TextEditingController();
+  final _parcelNoteCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _receiverNameCtrl.dispose();
+    _receiverPhoneCtrl.dispose();
+    _parcelNoteCtrl.dispose();
+    super.dispose();
+  }
 
   // A tiny ETA heuristic per vehicle type (minutes until pickup).
   static const _etas = {
@@ -77,6 +94,26 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
     );
   }
 
+  /// Validated parcel payload, or null (with a snackbar) if incomplete.
+  Map<String, dynamic>? _parcelInfoOrWarn() {
+    final name = _receiverNameCtrl.text.trim();
+    final phone = _receiverPhoneCtrl.text.trim();
+    final note = _parcelNoteCtrl.text.trim();
+    if (name.isEmpty || phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please add the receiver's name and phone number."),
+        ),
+      );
+      return null;
+    }
+    return {
+      'receiverName': name,
+      'receiverPhone': phone,
+      if (note.isNotEmpty) 'note': note,
+    };
+  }
+
   Future<void> _book(FareConfig config) async {
     final profile = ref.read(userProfileProvider).value;
     if (profile == null) {
@@ -84,6 +121,11 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
         const SnackBar(content: Text('Still loading your profile…')),
       );
       return;
+    }
+    Map<String, dynamic>? parcelInfo;
+    if (_selected == VehicleType.parcel) {
+      parcelInfo = _parcelInfoOrWarn();
+      if (parcelInfo == null) return;
     }
     setState(() => _booking = true);
 
@@ -108,6 +150,7 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
       routePolyline: widget.route.polyline,
       fare: fare,
       paymentMethod: _payment,
+      parcelInfo: parcelInfo,
     );
 
     try {
@@ -176,55 +219,97 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
             alignment: Alignment.bottomCenter,
             child: SheetCard(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SheetHandle(),
-                  Row(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.72,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.route_rounded,
-                          size: 18, color: AppColors.inkSoft),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${Fmt.distance(widget.route.distanceMeters)} · ${Fmt.duration(widget.route.durationSeconds)}',
-                        style: AppText.bodySoft,
+                      const SheetHandle(),
+                      Row(
+                        children: [
+                          const Icon(Icons.route_rounded,
+                              size: 18, color: AppColors.inkSoft),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${Fmt.distance(widget.route.distanceMeters)} · ${Fmt.duration(widget.route.durationSeconds)}',
+                            style: AppText.bodySoft,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ...VehicleType.values.map((type) {
+                        final fare = const FareCalculator().compute(
+                          config: config,
+                          type: type,
+                          distanceMeters:
+                              widget.route.distanceMeters.toDouble(),
+                          durationSeconds:
+                              widget.route.durationSeconds.toDouble(),
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: VehicleTypeTile(
+                            type: type,
+                            fare: fare.total,
+                            etaMinutes: _etas[type] ?? 4,
+                            selected: _selected == type,
+                            onTap: () => setState(() => _selected = type),
+                          ),
+                        );
+                      }),
+                      if (_selected == VehicleType.parcel) ...[
+                        const SizedBox(height: 4),
+                        const Text('Parcel details', style: AppText.title),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _receiverNameCtrl,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Receiver name',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _receiverPhoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Receiver phone',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.call_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _parcelNoteCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Note for captain (optional)',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.sticky_note_2_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      const SizedBox(height: 4),
+                      _PaymentToggle(
+                        method: _payment,
+                        onChanged: (m) => setState(() => _payment = m),
+                      ),
+                      const SizedBox(height: 12),
+                      PrimaryButton(
+                        label: 'Book ${_selected.label}',
+                        loading: _booking,
+                        icon: Icons.check_circle_outline_rounded,
+                        onPressed: () => _book(config),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  ...VehicleType.values.map((type) {
-                    final fare = const FareCalculator().compute(
-                      config: config,
-                      type: type,
-                      distanceMeters: widget.route.distanceMeters.toDouble(),
-                      durationSeconds:
-                          widget.route.durationSeconds.toDouble(),
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: VehicleTypeTile(
-                        type: type,
-                        fare: fare.total,
-                        etaMinutes: _etas[type] ?? 4,
-                        selected: _selected == type,
-                        onTap: () => setState(() => _selected = type),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 4),
-                  _PaymentToggle(
-                    method: _payment,
-                    onChanged: (m) => setState(() => _payment = m),
-                  ),
-                  const SizedBox(height: 12),
-                  PrimaryButton(
-                    label: 'Book ${_selected.label}',
-                    loading: _booking,
-                    icon: Icons.check_circle_outline_rounded,
-                    onPressed: () => _book(config),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

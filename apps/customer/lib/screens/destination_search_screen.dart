@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import 'pick_on_map_screen.dart';
 import 'ride_options_screen.dart';
 
 /// Which field the user is currently editing.
@@ -14,7 +15,19 @@ class DestinationSearchScreen extends ConsumerStatefulWidget {
   /// The user's current location, used to bias autocomplete and prefill pickup.
   final LatLngPoint origin;
 
-  const DestinationSearchScreen({super.key, required this.origin});
+  /// Preselects this ride type on the options screen (home shortcut chips).
+  final VehicleType? preselectType;
+
+  /// When true the screen is a plain place picker: choosing a destination
+  /// pops with a [ResolvedPlace] instead of routing to ride options.
+  final bool pickMode;
+
+  const DestinationSearchScreen({
+    super.key,
+    required this.origin,
+    this.preselectType,
+    this.pickMode = false,
+  });
 
   @override
   ConsumerState<DestinationSearchScreen> createState() =>
@@ -39,7 +52,7 @@ class _DestinationSearchScreenState
   void initState() {
     super.initState();
     _pickupPoint = widget.origin;
-    _prefillPickup();
+    if (!widget.pickMode) _prefillPickup();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _destFocus.requestFocus();
     });
@@ -103,16 +116,8 @@ class _DestinationSearchScreenState
     try {
       final resolved =
           await ref.read(geoGatewayProvider).placeDetails(s.placeId);
-      final point = resolved.point.copyWith(address: resolved.address);
-      if (_active == _Field.pickup) {
-        _pickupPoint = point;
-        _pickupCtrl.text = resolved.address;
-      } else {
-        _dropPoint = point;
-        _destCtrl.text = resolved.address;
-      }
-      setState(() => _suggestions = []);
-      await _maybeProceed();
+      if (!mounted) return;
+      _applyResolved(resolved);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,6 +127,54 @@ class _DestinationSearchScreenState
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Fills the active field with [resolved]; in pick mode this pops instead.
+  void _applyResolved(ResolvedPlace resolved) {
+    if (widget.pickMode && _active == _Field.destination) {
+      Navigator.of(context).pop(resolved);
+      return;
+    }
+    final point = resolved.point.copyWith(address: resolved.address);
+    if (_active == _Field.pickup) {
+      _pickupPoint = point;
+      _pickupCtrl.text = resolved.address;
+    } else {
+      _dropPoint = point;
+      _destCtrl.text = resolved.address;
+    }
+    setState(() => _suggestions = []);
+    _maybeProceed();
+  }
+
+  Future<void> _chooseOnMap(_Field field) async {
+    FocusScope.of(context).unfocus();
+    _active = field;
+    final initial =
+        (field == _Field.pickup ? _pickupPoint : _dropPoint) ?? widget.origin;
+    final resolved = await Navigator.of(context).push<ResolvedPlace>(
+      MaterialPageRoute(
+        builder: (_) => PickOnMapScreen(
+          initial: initial,
+          title: field == _Field.pickup
+              ? 'Choose pickup'
+              : 'Choose destination',
+        ),
+      ),
+    );
+    if (resolved == null || !mounted) return;
+    _applyResolved(resolved);
+  }
+
+  /// Resets the pickup to the user's current GPS location.
+  Future<void> _useCurrentLocation() async {
+    FocusScope.of(context).unfocus();
+    _active = _Field.pickup;
+    _pickupPoint = widget.origin;
+    _pickupCtrl.text = 'Current location';
+    setState(() => _suggestions = []);
+    await _prefillPickup();
+    await _maybeProceed();
   }
 
   Future<void> _maybeProceed() async {
@@ -139,6 +192,7 @@ class _DestinationSearchScreenState
           pickup: pickup,
           dropoff: drop,
           route: route,
+          initialType: widget.preselectType,
         ),
       ));
     } catch (e) {
@@ -155,7 +209,9 @@ class _DestinationSearchScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Plan your trip')),
+      appBar: AppBar(
+        title: Text(widget.pickMode ? 'Choose a place' : 'Plan your trip'),
+      ),
       body: Column(
         children: [
           Container(
@@ -163,19 +219,21 @@ class _DestinationSearchScreenState
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               children: [
-                _fieldRow(
-                  icon: Icons.my_location_rounded,
-                  color: AppColors.primary,
-                  controller: _pickupCtrl,
-                  hint: 'Pickup location',
-                  field: _Field.pickup,
-                ),
-                const SizedBox(height: 10),
+                if (!widget.pickMode) ...[
+                  _fieldRow(
+                    icon: Icons.my_location_rounded,
+                    color: AppColors.primary,
+                    controller: _pickupCtrl,
+                    hint: 'Pickup location',
+                    field: _Field.pickup,
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 _fieldRow(
                   icon: Icons.location_on_rounded,
                   color: AppColors.danger,
                   controller: _destCtrl,
-                  hint: 'Where to?',
+                  hint: widget.pickMode ? 'Search for a place' : 'Where to?',
                   field: _Field.destination,
                   focusNode: _destFocus,
                 ),
@@ -184,26 +242,66 @@ class _DestinationSearchScreenState
           ),
           if (_busy) const LinearProgressIndicator(minHeight: 2),
           Expanded(
-            child: ListView.separated(
-              itemCount: _suggestions.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, indent: 56),
-              itemBuilder: (_, i) {
-                final s = _suggestions[i];
-                return ListTile(
-                  leading: const Icon(Icons.place_outlined,
-                      color: AppColors.inkSoft),
-                  title: Text(s.primaryText, style: AppText.title),
-                  subtitle: s.secondaryText.isEmpty
-                      ? null
-                      : Text(s.secondaryText, style: AppText.bodySoft),
-                  onTap: () => _pick(s),
-                );
-              },
-            ),
+            child: _suggestions.isEmpty ? _shortcutTiles() : _suggestionList(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _suggestionList() {
+    return ListView.separated(
+      itemCount: _suggestions.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+      itemBuilder: (_, i) {
+        final s = _suggestions[i];
+        return ListTile(
+          leading:
+              const Icon(Icons.place_outlined, color: AppColors.inkSoft),
+          title: Text(s.primaryText, style: AppText.title),
+          subtitle: s.secondaryText.isEmpty
+              ? null
+              : Text(s.secondaryText, style: AppText.bodySoft),
+          onTap: () => _pick(s),
+        );
+      },
+    );
+  }
+
+  /// Shown while there are no suggestions: map-pick and GPS shortcuts.
+  Widget _shortcutTiles() {
+    return ListView(
+      children: [
+        if (!widget.pickMode) ...[
+          ListTile(
+            leading: const Text('📍', style: TextStyle(fontSize: 22)),
+            title: const Text('Choose pickup on map', style: AppText.title),
+            subtitle:
+                const Text('Drop a pin at your pickup', style: AppText.bodySoft),
+            onTap: () => _chooseOnMap(_Field.pickup),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.my_location_rounded,
+                color: AppColors.primary),
+            title: const Text('Use current location', style: AppText.title),
+            subtitle: const Text('Set pickup to where you are',
+                style: AppText.bodySoft),
+            onTap: _useCurrentLocation,
+          ),
+          const Divider(height: 1, indent: 56),
+        ],
+        ListTile(
+          leading: const Text('📍', style: TextStyle(fontSize: 22)),
+          title: Text(
+            widget.pickMode ? 'Choose on map' : 'Choose destination on map',
+            style: AppText.title,
+          ),
+          subtitle: const Text('Drop a pin on the map',
+              style: AppText.bodySoft),
+          onTap: () => _chooseOnMap(_Field.destination),
+        ),
+      ],
     );
   }
 

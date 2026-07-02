@@ -6,8 +6,13 @@ import 'package:latlong2/latlong.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
+import '../util/saved_place_flow.dart';
 import '../widgets/sheet_card.dart';
 import 'destination_search_screen.dart';
+import 'history_screen.dart';
+import 'profile_screen.dart';
+import 'ride_options_screen.dart';
+import 'searching_screen.dart';
 import 'tracking_screen.dart';
 
 /// Default map center (Hyderabad) used when location permission is denied.
@@ -24,6 +29,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final MapController _map = MapController();
   LatLng _center = _hyderabad;
   bool _hasLocation = false;
+  bool _routing = false;
+
+  /// Ride id we already auto-opened, so backing out of tracking doesn't
+  /// immediately push it again (the banner stays available instead).
+  String? _autoOpenedRideId;
 
   @override
   void initState() {
@@ -45,21 +55,108 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  void _openSearch() {
+  void _recenter() {
+    if (_hasLocation) {
+      _map.move(_center, 15);
+    }
+    _initLocation();
+  }
+
+  void _openSearch({VehicleType? type}) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => DestinationSearchScreen(origin: _center.toPoint()),
+      builder: (_) => DestinationSearchScreen(
+        origin: _center.toPoint(),
+        preselectType: type,
+      ),
     ));
+  }
+
+  void _openTracking(Ride ride) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ride.status == RideStatus.searching
+          ? SearchingScreen(rideId: ride.id)
+          : TrackingScreen(rideId: ride.id),
+    ));
+  }
+
+  /// One-tap booking: current GPS as pickup, [drop] as destination.
+  Future<void> _goTo(LatLngPoint drop) async {
+    if (_routing) return;
+    setState(() => _routing = true);
+    try {
+      final geo = ref.read(geoGatewayProvider);
+      LatLngPoint pickup;
+      try {
+        pickup = await ref.read(locationServiceProvider).currentPosition();
+      } catch (_) {
+        pickup = _center.toPoint();
+      }
+      String address = 'Current location';
+      try {
+        final addr = await geo.reverseGeocode(pickup);
+        if (addr.isNotEmpty) address = addr;
+      } catch (_) {
+        // Keep the placeholder address.
+      }
+      pickup = pickup.copyWith(address: address);
+      final route = await geo.route(pickup, drop);
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RideOptionsScreen(
+          pickup: pickup,
+          dropoff: drop,
+          route: route,
+        ),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not compute route: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
+
+  Future<void> _addSavedPlace() async {
+    await addSavedPlaceFlow(context, ref, _center.toPoint());
+  }
+
+  /// Unique recent dropoff addresses from ride history (max 3).
+  List<LatLngPoint> _recentDestinations(List<Ride> rides) {
+    final seen = <String>{};
+    final result = <LatLngPoint>[];
+    for (final ride in rides) {
+      final address = ride.dropoff.address;
+      if (address == null || address.isEmpty) continue;
+      if (!seen.add(address)) continue;
+      result.add(ride.dropoff);
+      if (result.length == 3) break;
+    }
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    // If an active ride exists, take over the screen with tracking.
     final active = ref.watch(activeRideProvider).value;
-    if (active != null) {
-      return TrackingScreen(rideId: active.id);
+    final profile = ref.watch(userProfileProvider).value;
+    final rides = ref.watch(rideHistoryProvider).value ?? const <Ride>[];
+
+    // Auto-open an active ride once (e.g. app relaunched mid-trip). After
+    // that the banner below remains as the way back in.
+    if (active != null && _autoOpenedRideId != active.id) {
+      _autoOpenedRideId = active.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final route = ModalRoute.of(context);
+        if (route != null && route.isCurrent) _openTracking(active);
+      });
     }
 
-    final profile = ref.watch(userProfileProvider).value;
+    final firstName = _firstName(profile?.name);
+    final recents = _recentDestinations(rides);
+    final savedPlaces = profile?.savedPlaces ?? const <SavedPlace>[];
 
     return Scaffold(
       body: Stack(
@@ -91,17 +188,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
             ],
           ),
-          // Top bar: menu + greeting.
+          // Top bar: greeting + history + avatar.
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  _RoundIconButton(
-                    icon: Icons.menu_rounded,
-                    onTap: () => _showMenu(context),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -117,103 +209,274 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ],
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_rounded,
-                              color: AppColors.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              profile == null
-                                  ? 'Welcome'
-                                  : 'Hi, ${profile.name}',
-                              style: AppText.title,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        firstName == null ? 'Welcome 👋' : 'Hi $firstName 👋',
+                        style: AppText.title,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _RoundIconButton(
+                    icon: Icons.history_rounded,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _AvatarButton(
+                    name: profile?.name,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          // Bottom "where to" card.
+          // Bottom: locate FAB + active ride banner + main sheet.
           Align(
             alignment: Alignment.bottomCenter,
-            child: SheetCard(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Where are you going?', style: AppText.h2),
-                  const SizedBox(height: 12),
-                  InkWell(
-                    onTap: _openSearch,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.scaffold,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: const Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16, bottom: 12),
+                  child: FloatingActionButton.small(
+                    heroTag: 'locate',
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    onPressed: _recenter,
+                    child: const Icon(Icons.my_location_rounded),
+                  ),
+                ),
+                if (active != null)
+                  _ActiveRideBanner(
+                    ride: active,
+                    onTap: () => _openTracking(active),
+                  ),
+                SheetCard(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.52,
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.search_rounded,
-                              color: AppColors.inkSoft),
-                          SizedBox(width: 10),
-                          Text('Search destination',
-                              style: AppText.bodySoft),
+                          // Big "Where to?" search bar.
+                          InkWell(
+                            onTap: _openSearch,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 18),
+                              decoration: BoxDecoration(
+                                color: AppColors.scaffold,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: AppColors.line, width: 1.2),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.search_rounded,
+                                      color: AppColors.primary, size: 26),
+                                  SizedBox(width: 12),
+                                  Text('Where to?', style: AppText.h2),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          // Ride-type shortcut chips.
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: VehicleType.values
+                                  .map((t) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 10),
+                                        child: _RideTypeChip(
+                                          type: t,
+                                          onTap: () => _openSearch(type: t),
+                                        ),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          // Saved places chips + Add.
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                ...savedPlaces.map(
+                                  (p) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ActionChip(
+                                      avatar: Text(savedPlaceEmoji(p.label),
+                                          style:
+                                              const TextStyle(fontSize: 16)),
+                                      label: Text(p.label,
+                                          style: AppText.label
+                                              .copyWith(color: AppColors.ink)),
+                                      backgroundColor: Colors.white,
+                                      side: const BorderSide(
+                                          color: AppColors.line),
+                                      onPressed: () => _goTo(LatLngPoint(
+                                        lat: p.lat,
+                                        lng: p.lng,
+                                        address: p.address,
+                                      )),
+                                    ),
+                                  ),
+                                ),
+                                ActionChip(
+                                  avatar: const Icon(Icons.add_rounded,
+                                      size: 18, color: AppColors.primary),
+                                  label: Text('Add',
+                                      style: AppText.label.copyWith(
+                                          color: AppColors.primary)),
+                                  backgroundColor: Colors.white,
+                                  side:
+                                      const BorderSide(color: AppColors.line),
+                                  onPressed: _addSavedPlace,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Recent destinations.
+                          if (recents.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Divider(height: 1),
+                            ...recents.map(
+                              (d) => ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: const CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: AppColors.scaffold,
+                                  child: Icon(Icons.history_rounded,
+                                      size: 18, color: AppColors.inkSoft),
+                                ),
+                                title: Text(
+                                  d.address ?? '',
+                                  style: AppText.body,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onTap: () => _goTo(d),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          if (_routing) ...[
+            const Opacity(
+              opacity: 0.35,
+              child: ModalBarrier(dismissible: false, color: Colors.black),
+            ),
+            const Center(child: CircularProgressIndicator()),
+          ],
         ],
       ),
     );
   }
 
-  void _showMenu(BuildContext context) {
-    final auth = ref.read(authServiceProvider);
-    final profile = ref.read(userProfileProvider).value;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  static String? _firstName(String? name) {
+    final n = (name ?? '').trim();
+    if (n.isEmpty) return null;
+    return n.split(RegExp(r'\s+')).first;
+  }
+}
+
+/// Banner shown above the sheet when a ride is in progress.
+class _ActiveRideBanner extends StatelessWidget {
+  final Ride ride;
+  final VoidCallback onTap;
+  const _ActiveRideBanner({required this.ride, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Material(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Text(ride.vehicleType.emoji,
+                    style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Ride in progress — tap to view',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ride.status.customerLabel,
+                        style: AppText.label.copyWith(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: Colors.white),
+              ],
+            ),
+          ),
+        ),
       ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    );
+  }
+}
+
+/// Emoji chip for the ride-type shortcuts row.
+class _RideTypeChip extends StatelessWidget {
+  final VehicleType type;
+  final VoidCallback onTap;
+  const _RideTypeChip({required this.type, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
           children: [
-            const SizedBox(height: 8),
-            const SheetHandle(),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.primary,
-                child: Icon(Icons.person, color: Colors.white),
-              ),
-              title: Text(profile?.name ?? 'Rider', style: AppText.title),
-              subtitle: Text(
-                profile == null ? '' : Fmt.phone(profile.phone),
-                style: AppText.bodySoft,
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: AppColors.danger),
-              title: const Text('Sign out'),
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                await auth.signOut();
-              },
-            ),
+            Text(type.emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Text(type.label, style: AppText.title),
           ],
         ),
       ),
@@ -261,6 +524,42 @@ class _RoundIconButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Icon(icon, color: AppColors.ink),
+        ),
+      ),
+    );
+  }
+}
+
+/// Circular avatar button showing the user's initial; opens the profile.
+class _AvatarButton extends StatelessWidget {
+  final String? name;
+  final VoidCallback onTap;
+  const _AvatarButton({required this.name, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = (name ?? '').trim();
+    final initial = n.isEmpty ? 'R' : n[0].toUpperCase();
+    return Material(
+      color: AppColors.primary,
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ),
         ),
       ),
     );

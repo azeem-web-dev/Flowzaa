@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
 import '../widgets/sheet_card.dart';
+import '../widgets/status_timeline.dart';
 import 'ride_complete_screen.dart';
 
 class TrackingScreen extends ConsumerStatefulWidget {
@@ -21,6 +25,51 @@ class TrackingScreen extends ConsumerStatefulWidget {
 class _TrackingScreenState extends ConsumerState<TrackingScreen> {
   final MapController _map = MapController();
   bool _navigatedComplete = false;
+
+  /// Streams the rider's GPS onto the ride while the captain heads to pickup.
+  StreamSubscription<LatLngPoint>? _myLocationSub;
+
+  /// Previous captain point, used to derive a bearing when heading is absent.
+  LatLngPoint? _prevCaptainPoint;
+  double _captainBearing = 0;
+
+  @override
+  void dispose() {
+    _myLocationSub?.cancel();
+    super.dispose();
+  }
+
+  /// Start/stop sharing our live location depending on the ride status.
+  /// Shared only while the captain is heading to us (accepted/arrived).
+  void _syncLocationSharing(Ride ride) {
+    final shouldShare = ride.status == RideStatus.accepted ||
+        ride.status == RideStatus.arrived;
+    if (shouldShare && _myLocationSub == null) {
+      _myLocationSub = ref
+          .read(locationServiceProvider)
+          .positionStream(distanceFilter: 20)
+          .listen((point) {
+        ref
+            .read(rideServiceProvider)
+            .updateCustomerLocation(widget.rideId, point)
+            .catchError((_) {});
+      }, onError: (_) {});
+    } else if (!shouldShare && _myLocationSub != null) {
+      _myLocationSub?.cancel();
+      _myLocationSub = null;
+    }
+  }
+
+  void _updateCaptainBearing(LatLngPoint cap) {
+    final prev = _prevCaptainPoint;
+    if (cap.heading != null && cap.heading != 0) {
+      _captainBearing = cap.heading!;
+    } else if (prev != null &&
+        (prev.lat != cap.lat || prev.lng != cap.lng)) {
+      _captainBearing = Geo.bearing(prev, cap);
+    }
+    _prevCaptainPoint = cap;
+  }
 
   List<Marker> _markers(Ride ride) {
     final markers = <Marker>[
@@ -44,8 +93,25 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
         width: 44,
         height: 44,
         child: Transform.rotate(
-          angle: (cap.heading ?? 0) * 3.1415926535 / 180,
-          child: const Icon(Icons.two_wheeler, color: AppColors.ink),
+          angle: _captainBearing * math.pi / 180,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              ride.vehicleType.emoji,
+              style: const TextStyle(fontSize: 22),
+            ),
+          ),
         ),
       ));
     }
@@ -64,32 +130,80 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
     ];
   }
 
-  Future<void> _call(String? phone) async {
-    if (phone == null || phone.isEmpty) return;
-    final uri = Uri(scheme: 'tel', path: phone);
+  Future<void> _dial(String number) async {
+    final uri = Uri(scheme: 'tel', path: number);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
   }
 
+  Future<void> _call(String? phone) async {
+    if (phone == null || phone.isEmpty) return;
+    await _dial(phone);
+  }
+
+  /// Emergency call — dials 112 (all-India emergency number).
+  Future<void> _sos() async => _dial('112');
+
   Future<void> _shareTrip(Ride ride) async {
-    // Keep simple: copy trip info to the clipboard.
-    final text =
-        'Tracking my Flowzaa ride ${ride.id}.\nCaptain: ${ride.captainName ?? '—'} '
-        '(${ride.captainPhone ?? '—'})\nStatus: ${ride.status.customerLabel}';
+    final number =
+        (ride.captainVehicle?['number'] as String?) ?? 'vehicle TBD';
+    final text = "I'm on a Flowzaa ${ride.vehicleType.label} $number, "
+        'captain ${ride.captainName ?? '—'} ${ride.captainPhone ?? '—'}, '
+        'from ${ride.pickup.address ?? 'pickup'} to '
+        '${ride.dropoff.address ?? 'destination'}, live PIN ${ride.id}';
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trip details copied to clipboard')),
+        const SnackBar(content: Text('Trip details copied')),
       );
     }
   }
 
-  Future<void> _cancel() async {
+  /// Ask why, then cancel. Only offered before the trip starts.
+  Future<void> _cancelWithReason() async {
+    const reasons = [
+      'Wrong pickup',
+      'Captain too far',
+      'Changed my mind',
+      'Other',
+    ];
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            const SheetHandle(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Why are you cancelling?', style: AppText.h2),
+            ),
+            const SizedBox(height: 8),
+            ...reasons.map(
+              (r) => ListTile(
+                leading: const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.inkSoft),
+                title: Text(r, style: AppText.title),
+                onTap: () => Navigator.of(ctx).pop(r),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
     try {
       await ref.read(rideServiceProvider).cancelRide(
             rideId: widget.rideId,
             by: 'customer',
+            reason: reason,
           );
     } catch (_) {}
     if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
@@ -107,6 +221,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
+
+        _syncLocationSharing(ride);
 
         if (ride.status == RideStatus.completed && !_navigatedComplete) {
           _navigatedComplete = true;
@@ -126,6 +242,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
         // Keep the captain in view when their location updates.
         final cap = ride.captainLocation;
         if (cap != null) {
+          _updateCaptainBearing(cap);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _map.move(cap.toLatLng(), _map.camera.zoom);
@@ -155,13 +272,34 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                   ],
                 ),
               ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      color: Colors.white,
+                      shape: const CircleBorder(),
+                      elevation: 2,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () =>
+                            Navigator.of(context).popUntil((r) => r.isFirst),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               Align(
                 alignment: Alignment.bottomCenter,
                 child: _TrackingCard(
                   ride: ride,
                   onCall: () => _call(ride.captainPhone),
+                  onSos: _sos,
                   onShare: () => _shareTrip(ride),
-                  onCancel: ride.status == RideStatus.ongoing ? null : _cancel,
+                  onCancel: ride.status == RideStatus.ongoing
+                      ? null
+                      : _cancelWithReason,
                 ),
               ),
             ],
@@ -175,12 +313,14 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 class _TrackingCard extends StatelessWidget {
   final Ride ride;
   final VoidCallback onCall;
+  final VoidCallback onSos;
   final VoidCallback onShare;
   final VoidCallback? onCancel;
 
   const _TrackingCard({
     required this.ride,
     required this.onCall,
+    required this.onSos,
     required this.onShare,
     required this.onCancel,
   });
@@ -201,6 +341,8 @@ class _TrackingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SheetHandle(),
+          StatusTimeline(status: ride.status),
+          const SizedBox(height: 12),
           // Status banner.
           Container(
             width: double.infinity,
@@ -265,6 +407,17 @@ class _TrackingCard extends StatelessWidget {
                   onPressed: onShare,
                   icon: const Icon(Icons.ios_share_rounded, size: 18),
                   label: const Text('Share trip'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onSos,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                  ),
+                  icon: const Icon(Icons.sos_rounded, size: 18),
+                  label: const Text('SOS'),
                 ),
               ),
               if (onCancel != null) ...[
