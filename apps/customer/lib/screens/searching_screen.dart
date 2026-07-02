@@ -18,16 +18,19 @@ class SearchingScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchingScreen> createState() => _SearchingScreenState();
 }
 
-class _SearchingScreenState extends ConsumerState<SearchingScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat();
+class _SearchingScreenState extends ConsumerState<SearchingScreen> {
   bool _cancelling = false;
   bool _timedOut = false;
   bool _retrying = false;
   Timer? _timeoutTimer;
+  Timer? _hintTimer;
+  int _hintIndex = 0;
+
+  static const _hints = [
+    'Contacting nearby captains…',
+    'Hang tight…',
+    'Matching you with the best captain…',
+  ];
 
   /// Last snapshot of the ride, used to re-create it on Retry.
   Ride? _lastRide;
@@ -36,12 +39,16 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen>
   void initState() {
     super.initState();
     _timeoutTimer = Timer(_searchTimeout, _onTimeout);
+    _hintTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      setState(() => _hintIndex = (_hintIndex + 1) % _hints.length);
+    });
   }
 
   @override
   void dispose() {
     _timeoutTimer?.cancel();
-    _pulse.dispose();
+    _hintTimer?.cancel();
     super.dispose();
   }
 
@@ -140,13 +147,13 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen>
         final terminal = ride != null &&
             (ride.status == RideStatus.cancelled ||
                 ride.status == RideStatus.expired);
-        final timedOut = _timedOut ||
-            (ride != null && ride.status == RideStatus.expired);
+        final timedOut =
+            _timedOut || (ride != null && ride.status == RideStatus.expired);
 
         return Scaffold(
           body: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -174,14 +181,35 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen>
                       textAlign: TextAlign.center,
                     ),
                   ] else ...[
-                    _PulsingIcon(controller: _pulse),
+                    RadarPulse(
+                      size: 220,
+                      center: Icon(
+                        (ride?.vehicleType ?? VehicleType.bike).icon,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
                     const SizedBox(height: 28),
                     const Text('Finding you a captain…', style: AppText.h1),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Hang tight, we are matching you with a nearby captain.',
-                      style: AppText.bodySoft,
-                      textAlign: TextAlign.center,
+                    const SizedBox(height: 10),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 400),
+                      transitionBuilder: (child, anim) => FadeTransition(
+                        opacity: anim,
+                        child: SlideTransition(
+                          position: Tween(
+                            begin: const Offset(0, 0.3),
+                            end: Offset.zero,
+                          ).animate(anim),
+                          child: child,
+                        ),
+                      ),
+                      child: Text(
+                        _hints[_hintIndex],
+                        key: ValueKey(_hintIndex),
+                        style: AppText.bodySoft,
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                   const Spacer(),
@@ -219,48 +247,6 @@ class _SearchingScreenState extends ConsumerState<SearchingScreen>
                 ],
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PulsingIcon extends StatelessWidget {
-  final AnimationController controller;
-  const _PulsingIcon({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        final t = controller.value;
-        return SizedBox(
-          width: 140,
-          height: 140,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 60 + 80 * t,
-                height: 60 + 80 * t,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withOpacity(0.18 * (1 - t)),
-                ),
-              ),
-              Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary,
-                ),
-                child: const Icon(Icons.electric_bike_rounded,
-                    color: Colors.white, size: 38),
-              ),
-            ],
           ),
         );
       },

@@ -6,6 +6,7 @@ import 'providers/providers.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_setup_screen.dart';
+import 'widgets/brand_logo.dart';
 
 /// Routes the user based on auth + profile completeness.
 class AuthGate extends ConsumerWidget {
@@ -55,15 +56,19 @@ class _Splash extends StatelessWidget {
     return const Scaffold(
       backgroundColor: AppColors.scaffold,
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Flowzaa', style: AppText.display),
-            SizedBox(height: 4),
-            Text('Captain', style: AppText.bodySoft),
-            SizedBox(height: 24),
-            CircularProgressIndicator(),
-          ],
+        child: FadeSlideIn(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              BrandLogo(size: 76),
+              SizedBox(height: 18),
+              Text('Flowzaa', style: AppText.display),
+              SizedBox(height: 4),
+              Text('Captain', style: AppText.bodySoft),
+              SizedBox(height: 24),
+              CircularProgressIndicator(),
+            ],
+          ),
         ),
       ),
     );

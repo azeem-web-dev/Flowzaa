@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../widgets/vehicle_type_selector.dart';
 import 'earnings_screen.dart';
 
 /// The captain's own profile: view stats, edit details, sign out.
@@ -150,7 +151,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          _headerCard(captain),
+          FadeSlideIn(child: _headerCard(captain)),
           const SizedBox(height: 20),
           const Text('Edit details', style: AppText.h2),
           const SizedBox(height: 14),
@@ -159,7 +160,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 18),
           const Text('VEHICLE TYPE', style: AppText.label),
           const SizedBox(height: 10),
-          _vehicleSelector(),
+          VehicleTypeSelector(
+            value: _vehicleType,
+            onChanged: (type) => setState(() => _vehicleType = type),
+          ),
           const SizedBox(height: 18),
           _field(_vehicleNumber, 'Vehicle number (e.g. KA01AB1234)',
               Icons.confirmation_number_outlined,
@@ -253,10 +257,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
-          Text(
-            captain.vehicleType.emoji,
-            style: const TextStyle(fontSize: 28),
-          ),
+          VehicleIcon(type: captain.vehicleType, size: 44),
         ],
       ),
     );
@@ -339,43 +340,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           borderSide: const BorderSide(color: AppColors.line),
         ),
       ),
-    );
-  }
-
-  Widget _vehicleSelector() {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: VehicleType.values.map((type) {
-        final selected = type == _vehicleType;
-        return GestureDetector(
-          onTap: () => setState(() => _vehicleType = type),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primary : AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? AppColors.primary : AppColors.line,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(type.emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 8),
-                Text(
-                  type.label,
-                  style: AppText.title.copyWith(
-                    color: selected ? Colors.white : AppColors.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }

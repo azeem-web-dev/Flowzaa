@@ -1,8 +1,10 @@
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../widgets/count_up_rupees.dart';
 
 class TripCompleteScreen extends ConsumerStatefulWidget {
   final Ride ride;
@@ -31,6 +33,14 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  Future<void> _copyUpi(String upiId) async {
+    await Clipboard.setData(ClipboardData(text: upiId));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('UPI ID copied')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ride = widget.ride;
@@ -45,118 +55,176 @@ class _TripCompleteScreenState extends ConsumerState<TripCompleteScreen> {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 8),
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 8),
                 children: [
-                  const Center(
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundColor: AppColors.success,
-                      child: Icon(Icons.check_rounded,
-                          color: Colors.white, size: 44),
+                  Center(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 550),
+                      curve: Curves.easeOutBack,
+                      builder: (context, t, child) =>
+                          Transform.scale(scale: t, child: child),
+                      child: Container(
+                        height: 84,
+                        width: 84,
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.success.withOpacity(0.35),
+                              blurRadius: 22,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 46),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Trip complete',
-                      style: AppText.h1, textAlign: TextAlign.center),
+                  const FadeSlideIn(
+                    delay: Duration(milliseconds: 120),
+                    child: Text('Trip complete',
+                        style: AppText.h1, textAlign: TextAlign.center),
+                  ),
                   const SizedBox(height: 6),
-                  const Text('You earned',
-                      style: AppText.bodySoft, textAlign: TextAlign.center),
+                  const FadeSlideIn(
+                    delay: Duration(milliseconds: 180),
+                    child: Text('You earned',
+                        style: AppText.bodySoft, textAlign: TextAlign.center),
+                  ),
                   const SizedBox(height: 4),
-                  Text(
-                    Fmt.rupees(ride.fare.total),
+                  CountUpRupees(
+                    value: ride.fare.total,
                     style: AppText.display.copyWith(fontSize: 40),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    "${Fmt.rupees(ride.fare.total)} added to today's earnings",
-                    style: AppText.label.copyWith(color: AppColors.success),
-                    textAlign: TextAlign.center,
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 240),
+                    child: Text(
+                      "${Fmt.rupees(ride.fare.total)} added to today's earnings",
+                      style: AppText.label.copyWith(color: AppColors.success),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.savings_outlined,
-                            color: AppColors.accent),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            isUpi
-                                ? 'Collect ${Fmt.rupees(ride.fare.total)} — show '
-                                    'your UPI QR to the rider. Flowzaa takes '
-                                    '0% commission.'
-                                : 'Collect ${Fmt.rupees(ride.fare.total)} in cash '
-                                    'directly from the rider — Flowzaa takes '
-                                    '0% commission.',
-                            style:
-                                AppText.bodySoft.copyWith(color: AppColors.ink),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (upiId != null && upiId.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Container(
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 300),
+                    child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: AppColors.primary.withOpacity(0.3)),
+                        color: AppColors.accent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Column(
+                      child: Row(
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.qr_code_2_rounded,
-                                  color: AppColors.primary, size: 20),
-                              const SizedBox(width: 8),
-                              Text('YOUR UPI ID',
-                                  style: AppText.label
-                                      .copyWith(color: AppColors.primary)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            upiId,
-                            style:
-                                AppText.h2.copyWith(color: AppColors.primary),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'The rider pays this ID directly — no middleman.',
-                            style: AppText.bodySoft,
-                            textAlign: TextAlign.center,
+                          const Icon(Icons.savings_rounded,
+                              color: AppColors.accent),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              isUpi
+                                  ? 'Collect ${Fmt.rupees(ride.fare.total)} — show '
+                                      'your UPI QR to the rider. Flowzaa takes '
+                                      '0% commission.'
+                                  : 'Collect ${Fmt.rupees(ride.fare.total)} in cash '
+                                      'directly from the rider — Flowzaa takes '
+                                      '0% commission.',
+                              style: AppText.bodySoft
+                                  .copyWith(color: AppColors.ink),
+                            ),
                           ),
                         ],
                       ),
                     ),
+                  ),
+                  if (upiId != null && upiId.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    FadeSlideIn(
+                      delay: const Duration(milliseconds: 360),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color: AppColors.primary.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.qr_code_2_rounded,
+                                    color: AppColors.primary, size: 20),
+                                const SizedBox(width: 8),
+                                Text('YOUR UPI ID',
+                                    style: AppText.label
+                                        .copyWith(color: AppColors.primary)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    upiId,
+                                    style: AppText.h2.copyWith(
+                                      color: AppColors.primary,
+                                      fontFamily: 'monospace',
+                                      letterSpacing: 0.5,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Copy UPI ID',
+                                  onPressed: () => _copyUpi(upiId),
+                                  icon: const Icon(Icons.copy_rounded,
+                                      size: 18, color: AppColors.primary),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'The rider pays this ID directly — no middleman.',
+                              style: AppText.bodySoft,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
-                  const Text('Rate your rider',
-                      style: AppText.title, textAlign: TextAlign.center),
+                  const FadeSlideIn(
+                    delay: Duration(milliseconds: 420),
+                    child: Text('Rate your rider',
+                        style: AppText.title, textAlign: TextAlign.center),
+                  ),
                   const SizedBox(height: 10),
-                  Center(
-                    child: RatingStars(
-                      value: _stars.toDouble(),
-                      size: 40,
-                      onRate: (v) => setState(() => _stars = v),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 480),
+                    child: Center(
+                      child: RatingStars(
+                        value: _stars.toDouble(),
+                        size: 40,
+                        onRate: (v) => setState(() => _stars = v),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
               child: PrimaryButton(
                 label: 'Done',
                 loading: _busy,

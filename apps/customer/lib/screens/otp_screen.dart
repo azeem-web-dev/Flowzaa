@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../widgets/otp_boxes.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
   final String verificationId;
@@ -21,17 +23,69 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final _codeCtrl = TextEditingController();
+  final _otpKey = GlobalKey<OtpBoxesState>();
+  late String _verificationId = widget.verificationId;
   bool _loading = false;
+  bool _resending = false;
+  int _resendIn = 30;
+  Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendCountdown();
+  }
 
   @override
   void dispose() {
-    _codeCtrl.dispose();
+    _resendTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _verify() async {
-    final code = _codeCtrl.text.trim();
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    setState(() => _resendIn = 30);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      if (_resendIn <= 1) {
+        t.cancel();
+        setState(() => _resendIn = 0);
+      } else {
+        setState(() => _resendIn--);
+      }
+    });
+  }
+
+  Future<void> _resend() async {
+    setState(() => _resending = true);
+    try {
+      await ref.read(authServiceProvider).sendOtp(
+            phoneNumber: widget.phoneNumber,
+            onCodeSent: (verificationId) {
+              if (!mounted) return;
+              setState(() {
+                _verificationId = verificationId;
+                _resending = false;
+              });
+              _otpKey.currentState?.clear();
+              _startResendCountdown();
+              _snack('Code sent again');
+            },
+            onError: (e) {
+              if (!mounted) return;
+              setState(() => _resending = false);
+              _snack(AuthService.friendlyError(e));
+            },
+          );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _resending = false);
+      _snack('Could not resend code: $e');
+    }
+  }
+
+  Future<void> _verify(String code) async {
+    if (_loading) return;
     if (code.length != 6) {
       _snack('Enter the 6-digit code');
       return;
@@ -40,7 +94,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     final auth = ref.read(authServiceProvider);
     try {
       await auth.verifyOtp(
-        verificationId: widget.verificationId,
+        verificationId: _verificationId,
         smsCode: code,
       );
 
@@ -68,6 +122,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      _otpKey.currentState?.clear();
       _snack(AuthService.friendlyError(e));
     } catch (e) {
       if (!mounted) return;
@@ -100,8 +155,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -110,40 +164,65 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       appBar: AppBar(),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              const Text('Verify your number', style: AppText.h1),
-              const SizedBox(height: 8),
-              Text(
-                'Enter the 6-digit code sent to ${Fmt.phone(widget.phoneNumber)}.',
-                style: AppText.bodySoft,
+              const FadeSlideIn(
+                child: Text('Verify your number', style: AppText.h1),
+              ),
+              const SizedBox(height: 10),
+              // Phone being verified, with an edit-back affordance.
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 80),
+                child: ScaleTap(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Code sent to ${Fmt.phone(widget.phoneNumber)}',
+                        style: AppText.bodySoft,
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.edit_rounded,
+                          size: 16, color: AppColors.primary),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 32),
-              TextField(
-                controller: _codeCtrl,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 12,
-                ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  counterText: '',
-                  hintText: '••••••',
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 160),
+                child: OtpBoxes(
+                  key: _otpKey,
+                  onCompleted: _verify,
                 ),
               ),
-              const SizedBox(height: 24),
-              PrimaryButton(
-                label: 'Verify',
-                loading: _loading,
-                onPressed: _verify,
+              const SizedBox(height: 20),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 240),
+                child: Center(
+                  child: _resendIn > 0
+                      ? Text('Resend code in ${_resendIn}s',
+                          style: AppText.bodySoft)
+                      : TextButton(
+                          onPressed: _resending ? null : _resend,
+                          child: Text(_resending ? 'Sending…' : 'Resend code'),
+                        ),
+                ),
               ),
+              const Spacer(),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 300),
+                child: PrimaryButton(
+                  label: 'Verify',
+                  loading: _loading,
+                  onPressed: () => _verify(_otpKey.currentState?.code ?? ''),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

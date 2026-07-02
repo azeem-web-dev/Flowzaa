@@ -16,5 +16,4 @@ List<LatLng> decodeToLatLng(String encoded) =>
     Geo.decodePolyline(encoded).map((p) => LatLng(p.lat, p.lng)).toList();
 
 /// Compute the [LatLngBounds] that contains all [points].
-LatLngBounds boundsFor(List<LatLng> points) =>
-    LatLngBounds.fromPoints(points);
+LatLngBounds boundsFor(List<LatLng> points) => LatLngBounds.fromPoints(points);

@@ -4,16 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
 import '../screens/destination_search_screen.dart';
+import '../widgets/tinted_circle_icon.dart';
 
-/// Emoji for a saved-place chip based on its label.
-String savedPlaceEmoji(String label) {
+/// Icon for a saved-place chip/tile based on its label.
+IconData savedPlaceIcon(String label) {
   switch (label.toLowerCase()) {
     case 'home':
-      return '🏠';
+      return Icons.home_rounded;
     case 'work':
-      return '💼';
+      return Icons.work_rounded;
     default:
-      return '📍';
+      return Icons.place_rounded;
   }
 }
 
@@ -75,8 +76,9 @@ Future<String?> promptSavedPlaceLabel(BuildContext context) {
           onPressed: () => Navigator.of(ctx).pop('Home'),
           child: const Row(
             children: [
-              Text('🏠', style: TextStyle(fontSize: 20)),
-              SizedBox(width: 10),
+              TintedCircleIcon(
+                  icon: Icons.home_rounded, color: AppColors.primary, size: 36),
+              SizedBox(width: 12),
               Text('Home', style: AppText.title),
             ],
           ),
@@ -85,8 +87,9 @@ Future<String?> promptSavedPlaceLabel(BuildContext context) {
           onPressed: () => Navigator.of(ctx).pop('Work'),
           child: const Row(
             children: [
-              Text('💼', style: TextStyle(fontSize: 20)),
-              SizedBox(width: 10),
+              TintedCircleIcon(
+                  icon: Icons.work_rounded, color: AppColors.info, size: 36),
+              SizedBox(width: 12),
               Text('Work', style: AppText.title),
             ],
           ),
@@ -98,8 +101,9 @@ Future<String?> promptSavedPlaceLabel(BuildContext context) {
           },
           child: const Row(
             children: [
-              Text('📍', style: TextStyle(fontSize: 20)),
-              SizedBox(width: 10),
+              TintedCircleIcon(
+                  icon: Icons.place_rounded, color: AppColors.accent, size: 36),
+              SizedBox(width: 12),
               Text('Other…', style: AppText.title),
             ],
           ),

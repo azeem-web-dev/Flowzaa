@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../widgets/tinted_circle_icon.dart';
 import 'pick_on_map_screen.dart';
 import 'ride_options_screen.dart';
 
@@ -43,6 +44,7 @@ class _DestinationSearchScreenState
   _Field _active = _Field.destination;
   List<PlaceSuggestion> _suggestions = [];
   bool _busy = false;
+  bool _loadingSuggestions = false;
   Timer? _debounce;
 
   LatLngPoint? _pickupPoint;
@@ -95,8 +97,12 @@ class _DestinationSearchScreenState
   }
 
   Future<void> _search(String input) async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _loadingSuggestions = true;
+    });
     try {
+      // Bias results near the user's current location.
       final results = await ref.read(geoGatewayProvider).autocomplete(
             input,
             near: widget.origin,
@@ -106,7 +112,12 @@ class _DestinationSearchScreenState
     } catch (_) {
       if (mounted) setState(() => _suggestions = []);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _loadingSuggestions = false;
+        });
+      }
     }
   }
 
@@ -156,9 +167,7 @@ class _DestinationSearchScreenState
       MaterialPageRoute(
         builder: (_) => PickOnMapScreen(
           initial: initial,
-          title: field == _Field.pickup
-              ? 'Choose pickup'
-              : 'Choose destination',
+          title: field == _Field.pickup ? 'Set pickup' : 'Set destination',
         ),
       ),
     );
@@ -184,8 +193,7 @@ class _DestinationSearchScreenState
 
     setState(() => _busy = true);
     try {
-      final route =
-          await ref.read(geoGatewayProvider).route(pickup, drop);
+      final route = await ref.read(geoGatewayProvider).route(pickup, drop);
       if (!mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => RideOptionsScreen(
@@ -242,7 +250,11 @@ class _DestinationSearchScreenState
           ),
           if (_busy) const LinearProgressIndicator(minHeight: 2),
           Expanded(
-            child: _suggestions.isEmpty ? _shortcutTiles() : _suggestionList(),
+            child: _loadingSuggestions && _suggestions.isEmpty
+                ? _suggestionShimmer()
+                : _suggestions.isEmpty
+                    ? _shortcutTiles()
+                    : _suggestionList(),
           ),
         ],
       ),
@@ -252,54 +264,123 @@ class _DestinationSearchScreenState
   Widget _suggestionList() {
     return ListView.separated(
       itemCount: _suggestions.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 68),
       itemBuilder: (_, i) {
         final s = _suggestions[i];
-        return ListTile(
-          leading:
-              const Icon(Icons.place_outlined, color: AppColors.inkSoft),
-          title: Text(s.primaryText, style: AppText.title),
-          subtitle: s.secondaryText.isEmpty
-              ? null
-              : Text(s.secondaryText, style: AppText.bodySoft),
+        final tile = ScaleTap(
           onTap: () => _pick(s),
+          child: ListTile(
+            leading: const TintedCircleIcon(
+              icon: Icons.place_rounded,
+              color: AppColors.primary,
+            ),
+            title: Text(
+              s.primaryText,
+              style: AppText.title.copyWith(fontWeight: FontWeight.w700),
+            ),
+            subtitle: s.secondaryText.isEmpty
+                ? null
+                : Text(s.secondaryText, style: AppText.bodySoft),
+          ),
+        );
+        if (i >= 8) return tile;
+        return FadeSlideIn(
+          delay: Duration(milliseconds: 40 * i),
+          duration: const Duration(milliseconds: 260),
+          child: tile,
         );
       },
+    );
+  }
+
+  /// Skeleton rows shown while suggestions are being fetched.
+  Widget _suggestionShimmer() {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        for (var i = 0; i < 3; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Row(
+              children: [
+                ShimmerBox(
+                  width: 40,
+                  height: 40,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const ShimmerBox(width: 180, height: 14),
+                      const SizedBox(height: 8),
+                      ShimmerBox(
+                        width: double.infinity,
+                        height: 12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
   /// Shown while there are no suggestions: map-pick and GPS shortcuts.
   Widget _shortcutTiles() {
     return ListView(
+      padding: const EdgeInsets.only(top: 4),
       children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 6),
+          child: Text('QUICK OPTIONS', style: AppText.label),
+        ),
         if (!widget.pickMode) ...[
-          ListTile(
-            leading: const Text('📍', style: TextStyle(fontSize: 22)),
-            title: const Text('Choose pickup on map', style: AppText.title),
-            subtitle:
-                const Text('Drop a pin at your pickup', style: AppText.bodySoft),
+          ScaleTap(
             onTap: () => _chooseOnMap(_Field.pickup),
+            child: const ListTile(
+              leading: TintedCircleIcon(
+                icon: Icons.pin_drop_rounded,
+                color: AppColors.accent,
+              ),
+              title: Text('Choose pickup on map', style: AppText.title),
+              subtitle:
+                  Text('Drop a pin at your pickup', style: AppText.bodySoft),
+            ),
           ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: const Icon(Icons.my_location_rounded,
-                color: AppColors.primary),
-            title: const Text('Use current location', style: AppText.title),
-            subtitle: const Text('Set pickup to where you are',
-                style: AppText.bodySoft),
+          const Divider(height: 1, indent: 68),
+          ScaleTap(
             onTap: _useCurrentLocation,
+            child: const ListTile(
+              leading: TintedCircleIcon(
+                icon: Icons.my_location_rounded,
+                color: AppColors.primary,
+              ),
+              title: Text('Use current location', style: AppText.title),
+              subtitle:
+                  Text('Set pickup to where you are', style: AppText.bodySoft),
+            ),
           ),
-          const Divider(height: 1, indent: 56),
+          const Divider(height: 1, indent: 68),
         ],
-        ListTile(
-          leading: const Text('📍', style: TextStyle(fontSize: 22)),
-          title: Text(
-            widget.pickMode ? 'Choose on map' : 'Choose destination on map',
-            style: AppText.title,
-          ),
-          subtitle: const Text('Drop a pin on the map',
-              style: AppText.bodySoft),
+        ScaleTap(
           onTap: () => _chooseOnMap(_Field.destination),
+          child: ListTile(
+            leading: const TintedCircleIcon(
+              icon: Icons.map_rounded,
+              color: AppColors.info,
+            ),
+            title: Text(
+              widget.pickMode ? 'Choose on map' : 'Choose destination on map',
+              style: AppText.title,
+            ),
+            subtitle:
+                const Text('Drop a pin on the map', style: AppText.bodySoft),
+          ),
         ),
       ],
     );

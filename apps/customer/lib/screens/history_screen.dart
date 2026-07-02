@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/providers.dart';
 import '../widgets/sheet_card.dart';
+import '../widgets/tinted_circle_icon.dart';
 
 /// The customer's past (and active) rides, newest first.
 class HistoryScreen extends ConsumerWidget {
@@ -17,7 +18,7 @@ class HistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Your rides')),
       body: history.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const _HistoryShimmer(),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -26,17 +27,21 @@ class HistoryScreen extends ConsumerWidget {
         ),
         data: (rides) {
           if (rides.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_rounded,
-                      size: 64, color: AppColors.inkSoft),
-                  SizedBox(height: 12),
-                  Text('No rides yet', style: AppText.h2),
-                  SizedBox(height: 4),
-                  Text('Your trips will show up here.',
-                      style: AppText.bodySoft),
+                  const TintedCircleIcon(
+                    icon: Icons.receipt_long_rounded,
+                    color: AppColors.primary,
+                    size: 88,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('No rides yet', style: AppText.h2),
+                  const SizedBox(height: 4),
+                  Text('Book your first ride!',
+                      style:
+                          AppText.bodySoft.copyWith(color: AppColors.inkSoft)),
                 ],
               ),
             );
@@ -44,12 +49,65 @@ class HistoryScreen extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: rides.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, indent: 72),
-            itemBuilder: (_, i) => _RideTile(ride: rides[i]),
+            separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
+            itemBuilder: (_, i) {
+              final tile = _RideTile(ride: rides[i]);
+              if (i >= 10) return tile;
+              return FadeSlideIn(
+                delay: Duration(milliseconds: 40 * i),
+                duration: const Duration(milliseconds: 300),
+                child: tile,
+              );
+            },
           );
         },
       ),
+    );
+  }
+}
+
+/// Skeleton list shown while the ride history first loads.
+class _HistoryShimmer extends StatelessWidget {
+  const _HistoryShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        for (var i = 0; i < 6; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerBox(
+                  width: 44,
+                  height: 44,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const ShimmerBox(width: 140, height: 12),
+                      const SizedBox(height: 8),
+                      ShimmerBox(
+                        width: double.infinity,
+                        height: 12,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      const SizedBox(height: 8),
+                      const ShimmerBox(width: 200, height: 12),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -89,24 +147,14 @@ class _RideTile extends StatelessWidget {
         ? ''
         : DateFormat('d MMM yyyy · h:mm a').format(ride.createdAt!);
 
-    return InkWell(
+    return ScaleTap(
       onTap: () => _showDetail(context),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.scaffold,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: Text(ride.vehicleType.emoji,
-                  style: const TextStyle(fontSize: 22)),
-            ),
+            VehicleIcon(type: ride.vehicleType, size: 44),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -125,8 +173,7 @@ class _RideTile extends StatelessWidget {
                   _addressLine(Icons.location_on_rounded, AppColors.danger,
                       ride.dropoff.address ?? 'Destination'),
                   const SizedBox(height: 6),
-                  Text(Fmt.rupees(ride.fare.total),
-                      style: AppText.title),
+                  Text(Fmt.rupees(ride.fare.total), style: AppText.title),
                 ],
               ),
             ),
@@ -207,12 +254,11 @@ class _RideDetailSheet extends StatelessWidget {
             const SheetHandle(),
             Row(
               children: [
-                Text(ride.vehicleType.emoji,
-                    style: const TextStyle(fontSize: 26)),
-                const SizedBox(width: 10),
+                VehicleIcon(type: ride.vehicleType, size: 40),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text('${ride.vehicleType.label} ride',
-                      style: AppText.h2),
+                  child:
+                      Text('${ride.vehicleType.label} ride', style: AppText.h2),
                 ),
                 _StatusChip(status: ride.status),
               ],
@@ -247,8 +293,7 @@ class _RideDetailSheet extends StatelessWidget {
             _kv('Captain', ride.captainName ?? '—'),
             const SizedBox(height: 6),
             _kv('Payment', ride.paymentMethod.label),
-            if (ride.cancelReason != null &&
-                ride.cancelReason!.isNotEmpty) ...[
+            if (ride.cancelReason != null && ride.cancelReason!.isNotEmpty) ...[
               const SizedBox(height: 6),
               _kv('Cancel reason', ride.cancelReason!),
             ],
@@ -300,8 +345,8 @@ class _RideDetailSheet extends StatelessWidget {
       children: [
         Text(label, style: AppText.bodySoft),
         Flexible(
-          child: Text(value,
-              style: AppText.body, overflow: TextOverflow.ellipsis),
+          child:
+              Text(value, style: AppText.body, overflow: TextOverflow.ellipsis),
         ),
       ],
     );

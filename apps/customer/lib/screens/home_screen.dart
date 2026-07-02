@@ -7,7 +7,9 @@ import 'package:latlong2/latlong.dart';
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
 import '../util/saved_place_flow.dart';
+import '../widgets/map_attribution.dart';
 import '../widgets/sheet_card.dart';
+import '../widgets/tinted_circle_icon.dart';
 import 'destination_search_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
@@ -140,8 +142,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final active = ref.watch(activeRideProvider).value;
-    final profile = ref.watch(userProfileProvider).value;
-    final rides = ref.watch(rideHistoryProvider).value ?? const <Ride>[];
+    final profileAsync = ref.watch(userProfileProvider);
+    final historyAsync = ref.watch(rideHistoryProvider);
+    final profile = profileAsync.value;
+    final rides = historyAsync.value ?? const <Ride>[];
+    final sheetLoading = profileAsync.isLoading || historyAsync.isLoading;
 
     // Auto-open an active ride once (e.g. app relaunched mid-trip). After
     // that the banner below remains as the way back in.
@@ -171,8 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.flowzaa.customer',
               ),
               if (_hasLocation)
@@ -186,6 +190,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
+              const OsmAttribution(),
             ],
           ),
           // Top bar: greeting + history + avatar.
@@ -210,7 +215,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                       child: Text(
-                        firstName == null ? 'Welcome 👋' : 'Hi $firstName 👋',
+                        firstName == null
+                            ? _greeting()
+                            : '${_greeting()}, $firstName',
                         style: AppText.title,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -268,25 +275,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Big "Where to?" search bar.
-                          InkWell(
-                            onTap: _openSearch,
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 18),
-                              decoration: BoxDecoration(
-                                color: AppColors.scaffold,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                    color: AppColors.line, width: 1.2),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.search_rounded,
-                                      color: AppColors.primary, size: 26),
-                                  SizedBox(width: 12),
-                                  Text('Where to?', style: AppText.h2),
-                                ],
+                          FadeSlideIn(
+                            child: ScaleTap(
+                              onTap: _openSearch,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 18),
+                                decoration: BoxDecoration(
+                                  color: AppColors.scaffold,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: AppColors.line, width: 1.2),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.search_rounded,
+                                        color: AppColors.primary, size: 26),
+                                    SizedBox(width: 12),
+                                    Text('Where to?', style: AppText.h2),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -295,82 +303,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              children: VehicleType.values
-                                  .map((t) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(right: 10),
-                                        child: _RideTypeChip(
-                                          type: t,
-                                          onTap: () => _openSearch(type: t),
-                                        ),
-                                      ))
-                                  .toList(),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          // Saved places chips + Add.
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
                               children: [
-                                ...savedPlaces.map(
-                                  (p) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ActionChip(
-                                      avatar: Text(savedPlaceEmoji(p.label),
-                                          style:
-                                              const TextStyle(fontSize: 16)),
-                                      label: Text(p.label,
-                                          style: AppText.label
-                                              .copyWith(color: AppColors.ink)),
-                                      backgroundColor: Colors.white,
-                                      side: const BorderSide(
-                                          color: AppColors.line),
-                                      onPressed: () => _goTo(LatLngPoint(
-                                        lat: p.lat,
-                                        lng: p.lng,
-                                        address: p.address,
-                                      )),
+                                for (final (i, t) in VehicleType.values.indexed)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 10),
+                                    child: FadeSlideIn(
+                                      delay:
+                                          Duration(milliseconds: 60 + 50 * i),
+                                      beginOffset: const Offset(0.10, 0),
+                                      child: _RideTypeChip(
+                                        type: t,
+                                        onTap: () => _openSearch(type: t),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                ActionChip(
-                                  avatar: const Icon(Icons.add_rounded,
-                                      size: 18, color: AppColors.primary),
-                                  label: Text('Add',
-                                      style: AppText.label.copyWith(
-                                          color: AppColors.primary)),
-                                  backgroundColor: Colors.white,
-                                  side:
-                                      const BorderSide(color: AppColors.line),
-                                  onPressed: _addSavedPlace,
-                                ),
                               ],
                             ),
                           ),
-                          // Recent destinations.
-                          if (recents.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            const Divider(height: 1),
-                            ...recents.map(
-                              (d) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                leading: const CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: AppColors.scaffold,
-                                  child: Icon(Icons.history_rounded,
-                                      size: 18, color: AppColors.inkSoft),
+                          const SizedBox(height: 14),
+                          if (sheetLoading)
+                            const FadeSlideIn(
+                              delay: Duration(milliseconds: 120),
+                              child: _SheetShimmer(),
+                            )
+                          else ...[
+                            // Saved places chips + Add.
+                            FadeSlideIn(
+                              delay: const Duration(milliseconds: 160),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    ...savedPlaces.map(
+                                      (p) => Padding(
+                                        padding:
+                                            const EdgeInsets.only(right: 8),
+                                        child: ActionChip(
+                                          avatar: TintedCircleIcon(
+                                            icon: savedPlaceIcon(p.label),
+                                            color: AppColors.primary,
+                                            size: 22,
+                                          ),
+                                          label: Text(p.label,
+                                              style: AppText.label.copyWith(
+                                                  color: AppColors.ink)),
+                                          backgroundColor: Colors.white,
+                                          side: const BorderSide(
+                                              color: AppColors.line),
+                                          onPressed: () => _goTo(LatLngPoint(
+                                            lat: p.lat,
+                                            lng: p.lng,
+                                            address: p.address,
+                                          )),
+                                        ),
+                                      ),
+                                    ),
+                                    ActionChip(
+                                      avatar: const Icon(Icons.add_rounded,
+                                          size: 18, color: AppColors.primary),
+                                      label: Text('Add',
+                                          style: AppText.label.copyWith(
+                                              color: AppColors.primary)),
+                                      backgroundColor: Colors.white,
+                                      side: const BorderSide(
+                                          color: AppColors.line),
+                                      onPressed: _addSavedPlace,
+                                    ),
+                                  ],
                                 ),
-                                title: Text(
-                                  d.address ?? '',
-                                  style: AppText.body,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: () => _goTo(d),
                               ),
                             ),
+                            // Recent destinations.
+                            if (recents.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              const Divider(height: 1),
+                              for (final (i, d) in recents.indexed)
+                                FadeSlideIn(
+                                  delay: Duration(milliseconds: 220 + 50 * i),
+                                  child: ScaleTap(
+                                    onTap: () => _goTo(d),
+                                    child: ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: const TintedCircleIcon(
+                                        icon: Icons.history_rounded,
+                                        color: AppColors.inkSoft,
+                                        size: 32,
+                                      ),
+                                      title: Text(
+                                        d.address ?? '',
+                                        style: AppText.body,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ],
                         ],
                       ),
@@ -397,6 +426,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (n.isEmpty) return null;
     return n.split(RegExp(r'\s+')).first;
   }
+
+  /// Time-of-day greeting shown in the top bar.
+  static String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
 }
 
 /// Banner shown above the sheet when a ride is in progress.
@@ -416,13 +453,11 @@ class _ActiveRideBanner extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                Text(ride.vehicleType.emoji,
-                    style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 10),
+                VehicleIcon(type: ride.vehicleType, size: 36, selected: true),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,8 +478,7 @@ class _ActiveRideBanner extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: Colors.white),
+                const Icon(Icons.chevron_right_rounded, color: Colors.white),
               ],
             ),
           ),
@@ -454,7 +488,7 @@ class _ActiveRideBanner extends StatelessWidget {
   }
 }
 
-/// Emoji chip for the ride-type shortcuts row.
+/// Premium-icon chip for the ride-type shortcuts row.
 class _RideTypeChip extends StatelessWidget {
   final VehicleType type;
   final VoidCallback onTap;
@@ -462,11 +496,10 @@ class _RideTypeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return ScaleTap(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -474,12 +507,53 @@ class _RideTypeChip extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(type.emoji, style: const TextStyle(fontSize: 20)),
+            VehicleIcon(type: type, size: 34),
             const SizedBox(width: 8),
             Text(type.label, style: AppText.title),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Skeleton rows shown in the bottom sheet while profile/history load.
+class _SheetShimmer extends StatelessWidget {
+  const _SheetShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < 3; i++) ...[
+              ShimmerBox(
+                width: 88,
+                height: 32,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        for (var i = 0; i < 2; i++) ...[
+          Row(
+            children: [
+              ShimmerBox(
+                width: 32,
+                height: 32,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: ShimmerBox(height: 14)),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 }

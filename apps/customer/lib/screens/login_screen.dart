@@ -71,68 +71,152 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _snack(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Spacer(),
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.electric_bike_rounded,
-                    color: Colors.white, size: 40),
+      body: Stack(
+        children: [
+          // Subtle decorative brand circle, top-right.
+          Positioned(
+            top: -120,
+            right: -100,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withOpacity(0.06),
               ),
-              const SizedBox(height: 20),
-              const Text('Flowzaa', style: AppText.display),
-              const SizedBox(height: 8),
-              const Text(
-                'Book bikes, autos, cars & parcels in seconds.\nFlowzaa takes 0% — you pay your captain directly.',
-                style: AppText.bodySoft,
-              ),
-              const SizedBox(height: 40),
-              const Text('Mobile number', style: AppText.label),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
-                decoration: const InputDecoration(
-                  counterText: '',
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-                    child: Text('+91', style: AppText.title),
-                  ),
-                  prefixIconConstraints: BoxConstraints(minWidth: 0),
-                  hintText: '90000 00000',
-                ),
-              ),
-              const Spacer(),
-              PrimaryButton(
-                label: 'Continue',
-                loading: _loading,
-                onPressed: _continue,
-              ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
-        ),
+          Positioned(
+            top: 40,
+            right: -40,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withOpacity(0.05),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Spacer(),
+                  const FadeSlideIn(
+                    child: _LogoMark(),
+                  ),
+                  const SizedBox(height: 20),
+                  const FadeSlideIn(
+                    delay: Duration(milliseconds: 80),
+                    child: Text('Flowzaa', style: AppText.display),
+                  ),
+                  const SizedBox(height: 8),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 160),
+                    child: RichText(
+                      text: TextSpan(
+                        style: AppText.bodySoft,
+                        children: [
+                          const TextSpan(
+                              text:
+                                  'Book bikes, autos, cars & parcels in seconds.\nFlowzaa takes '),
+                          TextSpan(
+                            text: '0%',
+                            style: AppText.bodySoft.copyWith(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const TextSpan(
+                              text: ' — you pay your captain directly.'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 240),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Mobile number', style: AppText.label),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          maxLength: 10,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: const InputDecoration(
+                            counterText: '',
+                            prefixIcon: Padding(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 15),
+                              child: Text('+91', style: AppText.title),
+                            ),
+                            prefixIconConstraints: BoxConstraints(minWidth: 0),
+                            hintText: '90000 00000',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 320),
+                    child: PrimaryButton(
+                      label: 'Continue',
+                      loading: _loading,
+                      onPressed: _continue,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// Rounded-square gradient logo mark with a soft brand shadow.
+class _LogoMark extends StatelessWidget {
+  const _LogoMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.35),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.electric_bike_rounded,
+          color: Colors.white, size: 40),
     );
   }
 }

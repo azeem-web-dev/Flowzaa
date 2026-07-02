@@ -1,8 +1,5 @@
-import 'dart:math' as math;
-
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
@@ -10,6 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
+import '../widgets/code_input.dart';
+import '../widgets/map_attribution.dart';
+import '../widgets/vehicle_marker.dart';
 import 'trip_complete_screen.dart';
 
 class ActiveRideScreen extends ConsumerStatefulWidget {
@@ -23,6 +23,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   final MapController _mapController = MapController();
   final _pinController = TextEditingController();
   bool _busy = false;
+  bool _pinError = false;
 
   /// Heading (degrees, 0 = north) used to rotate the vehicle marker.
   double _headingDeg = 0;
@@ -101,8 +102,39 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         child: Column(
           children: [
             _statusBar(ride),
-            Expanded(child: _map(ride)),
-            _actionCard(ride),
+            Expanded(
+              child: Stack(
+                children: [
+                  _map(ride),
+                  const MapAttribution(),
+                ],
+              ),
+            ),
+            // Smoothly morph the bottom card between ride stages.
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.06),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(ride.status),
+                  child: _actionCard(ride),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -161,12 +193,12 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       if (ride.captainLocation != null)
         Marker(
           point: ride.captainLocation!.toLatLng,
-          width: 44,
-          height: 44,
-          child: Transform.rotate(
-            angle: _headingDeg * math.pi / 180,
-            child: const Icon(Icons.two_wheeler,
-                color: AppColors.primary, size: 34),
+          width: 46,
+          height: 46,
+          child: VehicleMarkerDisc(
+            type: ride.vehicleType,
+            headingDeg: _headingDeg,
+            size: 42,
           ),
         ),
     ];
@@ -215,7 +247,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
 
   BoxDecoration get _cardDecoration => const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(color: Color(0x14000000), blurRadius: 16),
         ],
@@ -259,16 +291,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           _addressTile(Icons.trip_origin, AppColors.primary, 'PICKUP',
               ride.pickup.address ?? 'Pickup point'),
           const SizedBox(height: 16),
+          _googleMapsButton(ride),
+          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _navigateTo(ride.pickup),
-                  icon: const Icon(Icons.navigation_outlined),
-                  label: const Text('Navigate'),
-                ),
-              ),
-              const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _cancel(ride),
@@ -278,14 +304,17 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                   label: const Text('Cancel'),
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: PrimaryButton(
+                  label: "I've Arrived",
+                  icon: Icons.check_circle_outline,
+                  loading: _busy,
+                  onPressed: () => _markArrived(ride),
+                ),
+              ),
             ],
-          ),
-          const SizedBox(height: 12),
-          PrimaryButton(
-            label: "I've Arrived",
-            icon: Icons.check_circle_outline,
-            loading: _busy,
-            onPressed: () => _markArrived(ride),
           ),
         ],
       ),
@@ -305,26 +334,20 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           const SizedBox(height: 12),
           _riderRow(ride),
           ..._parcelSection(ride),
+          const SizedBox(height: 12),
+          _googleMapsButton(ride),
           const SizedBox(height: 16),
           const Text('Ask rider for their 4-digit PIN', style: AppText.title),
           const SizedBox(height: 12),
-          TextField(
+          CodeInput(
+            length: 4,
             controller: _pinController,
-            keyboardType: TextInputType.number,
-            maxLength: 4,
-            textAlign: TextAlign.center,
-            style: AppText.h2.copyWith(letterSpacing: 10),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              counterText: '',
-              hintText: '••••',
-              filled: true,
-              fillColor: AppColors.scaffold,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
+            enabled: !_busy,
+            error: _pinError,
+            onChanged: (_) {
+              if (_pinError) setState(() => _pinError = false);
+            },
+            onCompleted: (_) => _startTrip(ride),
           ),
           const SizedBox(height: 12),
           PrimaryButton(
@@ -363,6 +386,8 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          _googleMapsButton(ride),
+          const SizedBox(height: 10),
           PrimaryButton(
             label: 'Complete Trip',
             icon: Icons.flag_rounded,
@@ -397,7 +422,15 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           children: [
             Row(
               children: [
-                const Text('📦', style: TextStyle(fontSize: 20)),
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: AppColors.parcel.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.inventory_2_rounded,
+                      size: 18, color: AppColors.parcel),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -482,6 +515,25 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     );
   }
 
+  /// Where turn-by-turn navigation should point right now: the pickup while
+  /// heading to the rider (accepted/arrived), the dropoff once ongoing.
+  LatLngPoint _navTarget(Ride ride) =>
+      ride.status == RideStatus.ongoing ? ride.dropoff : ride.pickup;
+
+  /// First-class hand-off to Google Maps navigation. The in-app map stays on
+  /// screen as the default; this opens the Maps app with turn-by-turn
+  /// directions to the stage-appropriate target using exact coordinates.
+  Widget _googleMapsButton(Ride ride) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _navigateTo(_navTarget(ride)),
+        icon: const Icon(Icons.navigation_rounded, size: 20),
+        label: const Text('Navigate with Google Maps'),
+      ),
+    );
+  }
+
   Widget _pill(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -514,19 +566,24 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   Future<void> _startTrip(Ride ride) async {
+    if (_busy) return;
     final pin = _pinController.text.trim();
     if (pin.length != 4) {
       _snack('Enter the 4-digit PIN');
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _pinError = false;
+    });
     try {
       final ok = await ref
           .read(rideServiceProvider)
           .startRide(rideId: ride.id, pin: pin);
       if (!mounted) return;
       if (!ok) {
-        _snack('Incorrect PIN');
+        setState(() => _pinError = true);
+        _snack('Incorrect PIN — ask the rider again');
         _pinController.clear();
       }
     } catch (e) {
@@ -562,7 +619,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -624,10 +681,11 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   Future<void> _navigateTo(LatLngPoint p) async {
-    // Prefer the turn-by-turn navigation intent (opens the Google Maps app).
+    // Prefer the turn-by-turn navigation intent (opens the Google Maps app
+    // and starts guidance immediately). Exact coordinates — no geocoding.
     final navUri = Uri.parse('google.navigation:q=${p.lat},${p.lng}&mode=d');
     if (await canLaunchUrl(navUri)) {
-      await launchUrl(navUri);
+      await launchUrl(navUri, mode: LaunchMode.externalApplication);
       return;
     }
     // Fall back to the universal Maps URL in an external app / browser.

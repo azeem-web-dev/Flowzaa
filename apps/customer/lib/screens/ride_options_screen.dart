@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
 import '../util/latlng_ext.dart';
+import '../widgets/map_attribution.dart';
 import '../widgets/sheet_card.dart';
 import 'searching_screen.dart';
 
@@ -189,12 +190,12 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.flowzaa.customer',
                 ),
                 PolylineLayer(polylines: _polylines()),
                 MarkerLayer(markers: _markers()),
+                const OsmAttribution(),
               ],
             ),
           ),
@@ -241,26 +242,30 @@ class _RideOptionsScreenState extends ConsumerState<RideOptionsScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      ...VehicleType.values.map((type) {
-                        final fare = const FareCalculator().compute(
-                          config: config,
-                          type: type,
-                          distanceMeters:
-                              widget.route.distanceMeters.toDouble(),
-                          durationSeconds:
-                              widget.route.durationSeconds.toDouble(),
-                        );
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: VehicleTypeTile(
+                      for (final (i, type) in VehicleType.values.indexed)
+                        Builder(builder: (context) {
+                          final fare = const FareCalculator().compute(
+                            config: config,
                             type: type,
-                            fare: fare.total,
-                            etaMinutes: _etas[type] ?? 4,
-                            selected: _selected == type,
-                            onTap: () => setState(() => _selected = type),
-                          ),
-                        );
-                      }),
+                            distanceMeters:
+                                widget.route.distanceMeters.toDouble(),
+                            durationSeconds:
+                                widget.route.durationSeconds.toDouble(),
+                          );
+                          return FadeSlideIn(
+                            delay: Duration(milliseconds: 50 * i),
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: VehicleTypeTile(
+                                type: type,
+                                fare: fare.total,
+                                etaMinutes: _etas[type] ?? 4,
+                                selected: _selected == type,
+                                onTap: () => setState(() => _selected = type),
+                              ),
+                            ),
+                          );
+                        }),
                       if (_selected == VehicleType.parcel) ...[
                         const SizedBox(height: 4),
                         const Text('Parcel details', style: AppText.title),
@@ -336,9 +341,8 @@ class _PaymentToggle extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: selected
-                  ? AppColors.primary.withOpacity(0.08)
-                  : Colors.white,
+              color:
+                  selected ? AppColors.primary.withOpacity(0.08) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: selected ? AppColors.primary : AppColors.line,

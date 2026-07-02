@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../widgets/brand_logo.dart';
 import 'otp_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -83,81 +84,105 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       backgroundColor: AppColors.scaffold,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              Row(
-                children: [
-                  Container(
-                    height: 56,
-                    width: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.two_wheeler_rounded,
-                        color: Colors.white, size: 32),
-                  ),
-                  const SizedBox(width: 14),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Flowzaa', style: AppText.display),
-                      Text('Captain', style: AppText.bodySoft),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              const Text('Drive with Flowzaa', style: AppText.h1),
-              const SizedBox(height: 6),
-              const Text(
-                'Earn on every trip. Riders pay you directly — '
-                'Flowzaa takes 0% commission.',
-                style: AppText.bodySoft,
-              ),
-              const SizedBox(height: 28),
-              const Text('PHONE NUMBER', style: AppText.label),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.line),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+              const FadeSlideIn(
                 child: Row(
                   children: [
-                    const Text('+91', style: AppText.title),
-                    const SizedBox(width: 10),
-                    Container(width: 1, height: 24, color: AppColors.line),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        maxLength: 10,
-                        style: AppText.title,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: const InputDecoration(
-                          counterText: '',
-                          border: InputBorder.none,
-                          hintText: '90000 00000',
+                    BrandLogo(size: 64),
+                    SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Flowzaa', style: AppText.display),
+                        Text('Captain', style: AppText.bodySoft),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              const FadeSlideIn(
+                delay: Duration(milliseconds: 80),
+                child: Text('Drive with Flowzaa', style: AppText.h1),
+              ),
+              const SizedBox(height: 6),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 160),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '0% commission',
+                        style: AppText.title.copyWith(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w700,
                         ),
+                      ),
+                      const TextSpan(
+                        text: ' — every rupee is yours. '
+                            'Riders pay you directly.',
+                        style: AppText.bodySoft,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 240),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('PHONE NUMBER', style: AppText.label),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Row(
+                        children: [
+                          const Text('+91', style: AppText.title),
+                          const SizedBox(width: 10),
+                          Container(
+                              width: 1, height: 24, color: AppColors.line),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 10,
+                              style: AppText.title,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: const InputDecoration(
+                                counterText: '',
+                                border: InputBorder.none,
+                                hintText: '90000 00000',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-              PrimaryButton(
-                label: 'Continue',
-                loading: _loading,
-                onPressed: _continue,
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 320),
+                child: PrimaryButton(
+                  label: 'Continue',
+                  loading: _loading,
+                  onPressed: _continue,
+                ),
               ),
               const Spacer(flex: 2),
             ],

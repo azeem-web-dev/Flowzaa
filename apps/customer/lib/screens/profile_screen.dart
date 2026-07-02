@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
 import '../util/saved_place_flow.dart';
+import '../widgets/tinted_circle_icon.dart';
 import 'history_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -16,10 +17,11 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         children: [
           // Header card: avatar, name (editable), phone, rating.
-          Container(
+          FadeSlideIn(
+              child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -83,10 +85,11 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
+          )),
           const SizedBox(height: 16),
 
           _tile(
+            index: 1,
             icon: Icons.history_rounded,
             title: 'Ride history',
             subtitle: 'Your past trips and receipts',
@@ -95,6 +98,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           _tile(
+            index: 2,
             icon: Icons.bookmark_rounded,
             title: 'Saved places',
             subtitle: 'Home, Work and other shortcuts',
@@ -103,12 +107,14 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           _tile(
+            index: 3,
             icon: Icons.info_outline_rounded,
             title: 'About Flowzaa',
             subtitle: 'Zero commission, always',
             onTap: () => _showAbout(context),
           ),
           _tile(
+            index: 4,
             icon: Icons.logout_rounded,
             title: 'Sign out',
             color: AppColors.danger,
@@ -125,31 +131,40 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _tile({
+    required int index,
     required IconData icon,
     required String title,
     String? subtitle,
     Color? color,
     required VoidCallback onTap,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.line),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: color ?? AppColors.primary),
-        title: Text(
-          title,
-          style: AppText.title.copyWith(color: color ?? AppColors.ink),
-        ),
-        subtitle: subtitle == null
-            ? null
-            : Text(subtitle, style: AppText.bodySoft),
-        trailing: const Icon(Icons.chevron_right_rounded,
-            color: AppColors.inkSoft),
+    return FadeSlideIn(
+      delay: Duration(milliseconds: 50 * index),
+      child: ScaleTap(
         onTap: onTap,
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.line),
+          ),
+          child: ListTile(
+            leading: TintedCircleIcon(
+              icon: icon,
+              color: color ?? AppColors.primary,
+            ),
+            title: Text(
+              title,
+              style: AppText.title.copyWith(color: color ?? AppColors.ink),
+            ),
+            subtitle: subtitle == null
+                ? null
+                : Text(subtitle, style: AppText.bodySoft),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.inkSoft),
+          ),
+        ),
       ),
     );
   }
@@ -280,24 +295,28 @@ class SavedPlacesScreen extends ConsumerWidget {
           : ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: places.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, indent: 72),
+              separatorBuilder: (_, __) => const Divider(height: 1, indent: 76),
               itemBuilder: (_, i) {
                 final p = places[i];
-                return ListTile(
-                  leading: Text(savedPlaceEmoji(p.label),
-                      style: const TextStyle(fontSize: 24)),
-                  title: Text(p.label, style: AppText.title),
-                  subtitle: Text(
-                    p.address,
-                    style: AppText.bodySoft,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded,
-                        color: AppColors.danger),
-                    onPressed: () => _delete(context, ref, places, p),
+                return FadeSlideIn(
+                  delay: Duration(milliseconds: 50 * i),
+                  child: ListTile(
+                    leading: TintedCircleIcon(
+                      icon: savedPlaceIcon(p.label),
+                      color: AppColors.primary,
+                    ),
+                    title: Text(p.label, style: AppText.title),
+                    subtitle: Text(
+                      p.address,
+                      style: AppText.bodySoft,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppColors.danger),
+                      onPressed: () => _delete(context, ref, places, p),
+                    ),
                   ),
                 );
               },

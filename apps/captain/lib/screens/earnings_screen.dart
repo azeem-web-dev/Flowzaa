@@ -22,7 +22,7 @@ class EarningsScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: historyAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => _loadingShimmer(),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -42,8 +42,11 @@ class EarningsScreen extends ConsumerWidget {
 
     return Column(
       children: [
-        _zeroCommissionBanner(),
-        _totalsCard(summary),
+        FadeSlideIn(child: _zeroCommissionBanner()),
+        FadeSlideIn(
+          delay: const Duration(milliseconds: 60),
+          child: _totalsCard(summary),
+        ),
         Expanded(
           child: completed.isEmpty
               ? _emptyState()
@@ -53,9 +56,32 @@ class EarningsScreen extends ConsumerWidget {
     );
   }
 
+  /// Skeleton layout mirroring the banner, totals card and trip rows.
+  Widget _loadingShimmer() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: [
+        const ShimmerBox(
+            height: 56, borderRadius: BorderRadius.all(Radius.circular(14))),
+        const SizedBox(height: 12),
+        const ShimmerBox(
+            height: 96, borderRadius: BorderRadius.all(Radius.circular(18))),
+        const SizedBox(height: 24),
+        const ShimmerBox(height: 14, width: 80),
+        const SizedBox(height: 12),
+        for (var i = 0; i < 6; i++) ...[
+          const ShimmerBox(
+              height: 68,
+              borderRadius: BorderRadius.all(Radius.circular(14))),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+
   Widget _zeroCommissionBanner() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.accent.withOpacity(0.12),
@@ -79,7 +105,7 @@ class EarningsScreen extends ConsumerWidget {
 
   Widget _totalsCard(EarningsSummary s) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       padding: const EdgeInsets.symmetric(vertical: 18),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -113,34 +139,54 @@ class EarningsScreen extends ConsumerWidget {
 
   Widget _emptyState() {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.route_outlined,
-              size: 48, color: AppColors.offlineGrey),
-          const SizedBox(height: 12),
-          Text('No trips yet — go online!',
-              style: AppText.title.copyWith(color: AppColors.inkSoft)),
-        ],
+      child: FadeSlideIn(
+        delay: const Duration(milliseconds: 120),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.savings_rounded,
+                  size: 40, color: AppColors.primary),
+            ),
+            const SizedBox(height: 14),
+            Text('No trips yet — go online!',
+                style: AppText.title.copyWith(color: AppColors.inkSoft)),
+            const SizedBox(height: 4),
+            const Text('Every rupee you earn shows up here.',
+                style: AppText.bodySoft),
+          ],
+        ),
       ),
     );
   }
 
   Widget _tripList(List<Ride> completed) {
-    // Rides arrive newest first; build a flat list of headers + rows.
+    // Rides arrive newest first; build a flat list of headers + rows with a
+    // staggered entrance (capped so long histories don't wait forever).
     final items = <Widget>[];
     String? lastLabel;
+    var index = 0;
     for (final ride in completed) {
       final at = rideEarnedAt(ride);
       final label = _dateLabel(at);
+      final delay = Duration(milliseconds: 50 * (index < 10 ? index : 10));
       if (label != lastLabel) {
-        items.add(Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-          child: Text(label.toUpperCase(), style: AppText.label),
+        items.add(FadeSlideIn(
+          delay: delay,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+            child: Text(label.toUpperCase(), style: AppText.label),
+          ),
         ));
         lastLabel = label;
       }
-      items.add(_tripRow(ride, at));
+      items.add(FadeSlideIn(delay: delay, child: _tripRow(ride, at)));
+      index++;
     }
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -161,7 +207,7 @@ class EarningsScreen extends ConsumerWidget {
   Widget _tripRow(Ride ride, DateTime? at) {
     final dropArea = ride.dropoff.address ?? 'Drop point';
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -170,7 +216,7 @@ class EarningsScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(ride.vehicleType.emoji, style: const TextStyle(fontSize: 22)),
+          VehicleIcon(type: ride.vehicleType, size: 38),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
