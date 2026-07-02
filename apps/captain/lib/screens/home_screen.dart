@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../providers/providers.dart';
+import '../util/earnings.dart';
 import '../util/latlng_ext.dart';
 import 'active_ride_screen.dart';
+import 'earnings_screen.dart';
+import 'profile_screen.dart';
 
 /// Max distance (km) from the captain within which we surface a request.
 const double _kRequestRadiusKm = 6.0;
@@ -180,6 +183,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           children: [
             _header(captain),
+            _earningsCard(),
             _onlineToggle(captain),
             Expanded(
               child: Stack(
@@ -239,15 +243,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: AppColors.primary,
-            child: Text(
-              captain.name.isNotEmpty ? captain.name[0].toUpperCase() : 'C',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700),
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+            child: CircleAvatar(
+              radius: 26,
+              backgroundColor: AppColors.primary,
+              child: Text(
+                captain.name.isNotEmpty ? captain.name[0].toUpperCase() : 'C',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -277,6 +286,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _earningsCard() {
+    final rides = ref.watch(rideHistoryProvider).valueOrNull ?? const <Ride>[];
+    final s = EarningsSummary.fromRides(rides);
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const EarningsScreen()),
+      ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.account_balance_wallet_rounded,
+                color: Colors.white, size: 28),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Today ${Fmt.rupees(s.today)} · '
+                    '${s.todayTrips} trip${s.todayTrips == 1 ? '' : 's'}',
+                    style: AppText.title.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'This week ${Fmt.rupees(s.week)}',
+                    style: AppText.bodySoft.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "0% commission — it's all yours.",
+                    style: AppText.label.copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _onlineToggle(Captain captain) {
     final online = captain.isOnline;
     return Container(
@@ -288,6 +349,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         border: Border.all(
           color: online ? AppColors.onlineGreen : AppColors.line,
         ),
+        boxShadow: online
+            ? [
+                BoxShadow(
+                  color: AppColors.onlineGreen.withOpacity(0.45),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
       ),
       child: Row(
         children: [
@@ -363,7 +433,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        constraints: const BoxConstraints(maxHeight: 360),
+        constraints: const BoxConstraints(maxHeight: 380),
         margin: const EdgeInsets.all(12),
         child: ListView.separated(
           shrinkWrap: true,
@@ -377,6 +447,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _requestCard(Ride ride, Captain captain) {
+    final me = _myLocation ?? captain.location;
+    final awayKm = me == null ? null : Geo.distanceKm(me, ride.pickup);
+    final isParcel =
+        ride.vehicleType == VehicleType.parcel && ride.parcelInfo != null;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -396,14 +471,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.notifications_active_rounded,
-                  color: AppColors.primary, size: 18),
+              Text(ride.vehicleType.emoji,
+                  style: const TextStyle(fontSize: 22)),
               const SizedBox(width: 8),
               const Text('New request', style: AppText.label),
+              if (isParcel) ...[
+                const SizedBox(width: 8),
+                _parcelBadge(),
+              ],
               const Spacer(),
               Text(Fmt.rupees(ride.fare.total), style: AppText.price),
             ],
           ),
+          if (awayKm != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.near_me_rounded,
+                    size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  '${awayKm.toStringAsFixed(1)} km away',
+                  style: AppText.label.copyWith(color: AppColors.primary),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           _locRow(Icons.trip_origin, AppColors.primary,
               ride.pickup.address ?? 'Pickup point'),
@@ -435,7 +528,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: TextButton(
                   onPressed: _busy
                       ? null
                       : () => setState(() {
@@ -459,6 +552,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _parcelBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.parcel.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '📦 Parcel',
+        style: AppText.label.copyWith(color: AppColors.parcel),
       ),
     );
   }

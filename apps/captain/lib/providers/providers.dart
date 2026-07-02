@@ -38,3 +38,13 @@ final activeRideProvider = StreamProvider.autoDispose<Ride?>((ref) {
   if (uid == null) return const Stream.empty();
   return ref.watch(rideServiceProvider).watchActiveRideForCaptain(uid);
 });
+
+// ---- Ride history / earnings ------------------------------------------------
+
+/// The captain's recent rides (newest first) — drives the earnings summary
+/// on home and the full earnings screen.
+final rideHistoryProvider = StreamProvider.autoDispose<List<Ride>>((ref) {
+  final uid = ref.watch(uidProvider);
+  if (uid == null) return const Stream.empty();
+  return ref.watch(rideServiceProvider).historyForCaptain(uid);
+});

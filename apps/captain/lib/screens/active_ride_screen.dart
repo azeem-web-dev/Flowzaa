@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flowzaa_shared/flowzaa_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,11 +24,26 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   final _pinController = TextEditingController();
   bool _busy = false;
 
+  /// Heading (degrees, 0 = north) used to rotate the vehicle marker.
+  double _headingDeg = 0;
+  LatLngPoint? _lastCaptainPoint;
+
   @override
   void dispose() {
     _mapController.dispose();
     _pinController.dispose();
     super.dispose();
+  }
+
+  void _trackHeading(Ride? ride) {
+    final loc = ride?.captainLocation;
+    if (loc == null) return;
+    final prev = _lastCaptainPoint;
+    final moved =
+        prev != null && (prev.lat != loc.lat || prev.lng != loc.lng);
+    final heading = loc.heading ?? (moved ? Geo.bearing(prev, loc) : null);
+    if (heading != null) _headingDeg = heading;
+    _lastCaptainPoint = loc;
   }
 
   @override
@@ -35,6 +52,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
 
     // When the ride completes, move to the completion screen.
     ref.listen(activeRideProvider, (prev, next) {
+      _trackHeading(next.valueOrNull);
       final ride = next.valueOrNull;
       final prevRide = prev?.valueOrNull;
       // Ride resolved to null (completed/cancelled) → pop back home.
@@ -64,6 +82,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             _goToComplete(ride);
           });
         }
+        _trackHeading(ride);
         return _buildRide(ride);
       },
     );
@@ -129,13 +148,26 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         height: 44,
         child: const Icon(Icons.location_on, color: AppColors.danger, size: 36),
       ),
+      // Live customer position while heading to pickup, so the captain can
+      // find the rider even if they move (falls back to the pickup pin).
+      if (ride.status == RideStatus.accepted)
+        Marker(
+          point: (ride.customerLocation ?? ride.pickup).toLatLng,
+          width: 46,
+          height: 46,
+          child: const Icon(Icons.person_pin_circle_rounded,
+              color: AppColors.primary, size: 40),
+        ),
       if (ride.captainLocation != null)
         Marker(
           point: ride.captainLocation!.toLatLng,
           width: 44,
           height: 44,
-          child: const Icon(Icons.two_wheeler,
-              color: AppColors.primary, size: 34),
+          child: Transform.rotate(
+            angle: _headingDeg * math.pi / 180,
+            child: const Icon(Icons.two_wheeler,
+                color: AppColors.primary, size: 34),
+          ),
         ),
     ];
 
@@ -189,6 +221,27 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         ],
       );
 
+  Widget _statusChip(Ride ride) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.circle, size: 8, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Text(
+            ride.status.captainLabel,
+            style: AppText.label.copyWith(color: AppColors.primary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _acceptedCard(Ride ride) {
     return Container(
       width: double.infinity,
@@ -198,7 +251,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _statusChip(ride),
+          const SizedBox(height: 12),
           _riderRow(ride),
+          ..._parcelSection(ride),
           const SizedBox(height: 14),
           _addressTile(Icons.trip_origin, AppColors.primary, 'PICKUP',
               ride.pickup.address ?? 'Pickup point'),
@@ -245,7 +301,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _statusChip(ride),
+          const SizedBox(height: 12),
           _riderRow(ride),
+          ..._parcelSection(ride),
           const SizedBox(height: 16),
           const Text('Ask rider for their 4-digit PIN', style: AppText.title),
           const SizedBox(height: 12),
@@ -288,6 +347,9 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _statusChip(ride),
+          ..._parcelSection(ride),
+          const SizedBox(height: 12),
           _addressTile(Icons.location_on, AppColors.danger, 'DROP',
               ride.dropoff.address ?? 'Drop point'),
           const SizedBox(height: 12),
@@ -310,6 +372,61 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         ],
       ),
     );
+  }
+
+  /// Receiver details card for parcel rides (empty for normal rides).
+  List<Widget> _parcelSection(Ride ride) {
+    final info = ride.parcelInfo;
+    if (ride.vehicleType != VehicleType.parcel || info == null) {
+      return const [];
+    }
+    final receiverName = info['receiverName'] as String? ?? 'Receiver';
+    final receiverPhone = info['receiverPhone'] as String? ?? '';
+    final note = info['note'] as String?;
+    return [
+      const SizedBox(height: 12),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.parcel.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('📦', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Deliver to $receiverName', style: AppText.title),
+                      if (receiverPhone.isNotEmpty)
+                        Text(Fmt.phone(receiverPhone),
+                            style: AppText.bodySoft),
+                    ],
+                  ),
+                ),
+                if (receiverPhone.isNotEmpty)
+                  IconButton.filled(
+                    onPressed: () => _call(receiverPhone),
+                    icon: const Icon(Icons.call, size: 20),
+                    style: IconButton.styleFrom(
+                        backgroundColor: AppColors.parcel),
+                  ),
+              ],
+            ),
+            if (note != null && note.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Note: $note', style: AppText.bodySoft),
+            ],
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _riderRow(Ride ride) {
@@ -433,23 +550,52 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     }
   }
 
+  static const _cancelReasons = [
+    'Rider not at pickup',
+    'Vehicle issue',
+    'Too far',
+    'Other',
+  ];
+
   Future<void> _cancel(Ride ride) async {
-    final reason = await showDialog<String>(
+    final reason = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel ride?'),
-        content: const Text('Are you sure you want to cancel this ride?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop('Cancelled by captain'),
-            child: const Text('Yes, cancel'),
-          ),
-        ],
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 6),
+              child: Text('Why are you cancelling?', style: AppText.h2),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text('Frequent cancellations affect your rating.',
+                  style: AppText.bodySoft),
+            ),
+            const SizedBox(height: 8),
+            ..._cancelReasons.map(
+              (r) => ListTile(
+                leading: const Icon(Icons.cancel_outlined,
+                    color: AppColors.danger),
+                title: Text(r, style: AppText.body),
+                onTap: () => Navigator.of(ctx).pop(r),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Keep this ride'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
     if (reason == null) return;
