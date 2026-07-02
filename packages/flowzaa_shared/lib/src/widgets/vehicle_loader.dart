@@ -100,7 +100,7 @@ class _DashPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     const dash = 14.0;
     const gap = 12.0;
-    final period = dash + gap;
+    const period = dash + gap;
     // Scroll the dashes leftwards to sell forward motion.
     var start = -period + (phase * period);
     while (start < size.width) {
