@@ -15,6 +15,7 @@ class AppColors {
   static const line = Color(0xFFE6E9EF);
   static const surface = Color(0xFFFFFFFF);
   static const scaffold = Color(0xFFF6F8FA);
+  static const iconSurface = Color(0xFFEFF2F6); // flat neutral icon background
 
   // Status
   static const success = Color(0xFF16A34A);

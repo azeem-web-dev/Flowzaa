@@ -42,4 +42,5 @@ export 'src/widgets/info_pill.dart';
 export 'src/widgets/primary_button.dart';
 export 'src/widgets/rating_stars.dart';
 export 'src/widgets/vehicle_icon.dart';
+export 'src/widgets/vehicle_loader.dart';
 export 'src/widgets/vehicle_type_tile.dart';

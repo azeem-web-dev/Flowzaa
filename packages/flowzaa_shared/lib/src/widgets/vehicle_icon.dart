@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/vehicle_type.dart';
 import '../theme/app_colors.dart';
 
-/// Premium icon treatment for ride categories — replaces emoji everywhere.
+/// Flat, professional icon treatment for ride categories — no gradients, no
+/// glow. Unselected: neutral surface + ink icon. Selected: solid teal + white.
 extension VehicleTypeVisuals on VehicleType {
   IconData get icon {
     switch (this) {
@@ -32,8 +33,7 @@ extension VehicleTypeVisuals on VehicleType {
   }
 }
 
-/// A soft gradient badge with the vehicle icon — the standard way to render a
-/// ride category across both apps.
+/// A flat square badge with the vehicle icon. Selected = solid brand fill.
 class VehicleIcon extends StatelessWidget {
   final VehicleType type;
   final double size;
@@ -48,35 +48,19 @@ class VehicleIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = type.color;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: selected
-              ? [c, c.withOpacity(0.75)]
-              : [c.withOpacity(0.16), c.withOpacity(0.08)],
-        ),
-        borderRadius: BorderRadius.circular(size * 0.32),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: c.withOpacity(0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                )
-              ]
-            : null,
+        color: selected ? AppColors.primary : AppColors.iconSurface,
+        borderRadius: BorderRadius.circular(size * 0.28),
       ),
       child: Icon(
         type.icon,
-        size: size * 0.55,
-        color: selected ? Colors.white : c,
+        size: size * 0.52,
+        color: selected ? Colors.white : AppColors.ink,
       ),
     );
   }
