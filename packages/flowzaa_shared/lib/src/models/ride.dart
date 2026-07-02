@@ -59,6 +59,13 @@ class Ride {
   /// Live captain position, updated during accepted/ongoing.
   final LatLngPoint? captainLocation;
 
+  /// Live customer position, streamed while the captain heads to pickup so
+  /// the captain can find the rider even if they move.
+  final LatLngPoint? customerLocation;
+
+  /// For parcel rides: {receiverName, receiverPhone, note}.
+  final Map<String, dynamic>? parcelInfo;
+
   final DateTime? createdAt;
   final DateTime? acceptedAt;
   final DateTime? arrivedAt;
@@ -91,6 +98,8 @@ class Ride {
     this.startPin,
     this.paymentMethod = PaymentMethod.cash,
     this.captainLocation,
+    this.customerLocation,
+    this.parcelInfo,
     this.createdAt,
     this.acceptedAt,
     this.arrivedAt,
@@ -125,6 +134,7 @@ class Ride {
         'fare': fare.toMap(),
         'startPin': startPin,
         'paymentMethod': paymentMethod.id,
+        if (parcelInfo != null) 'parcelInfo': parcelInfo,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -156,6 +166,11 @@ class Ride {
           ? null
           : LatLngPoint.fromMap(
               (m['captainLocation'] as Map).cast<String, dynamic>()),
+      customerLocation: m['customerLocation'] == null
+          ? null
+          : LatLngPoint.fromMap(
+              (m['customerLocation'] as Map).cast<String, dynamic>()),
+      parcelInfo: (m['parcelInfo'] as Map?)?.cast<String, dynamic>(),
       createdAt: _ts(m['createdAt']),
       acceptedAt: _ts(m['acceptedAt']),
       arrivedAt: _ts(m['arrivedAt']),

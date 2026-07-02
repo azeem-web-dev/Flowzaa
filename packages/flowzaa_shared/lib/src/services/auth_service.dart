@@ -108,6 +108,22 @@ class AuthService {
     return AppUser.fromDoc(await ref.get());
   }
 
+  /// Replace the user's saved places (Home/Work shortcuts).
+  Future<void> saveSavedPlaces(List<SavedPlace> places) async {
+    final id = uid;
+    if (id == null) return;
+    await Refs.user(id).set({
+      'savedPlaces': places.map((p) => p.toMap()).toList(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Update the display name on the profile.
+  Future<void> updateName(String name) async {
+    final id = uid;
+    if (id == null) return;
+    await Refs.user(id).set({'name': name}, SetOptions(merge: true));
+  }
+
   Future<void> updateFcmToken(String token, {bool captain = false}) async {
     final id = uid;
     if (id == null) return;

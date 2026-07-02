@@ -147,6 +147,11 @@ class RideService {
   Future<void> updateCaptainLocation(String rideId, LatLngPoint p) =>
       Refs.ride(rideId).update({'captainLocation': p.toMap()});
 
+  /// Push the customer's live position while the captain heads to pickup, so
+  /// the captain can find the rider even if they move.
+  Future<void> updateCustomerLocation(String rideId, LatLngPoint p) =>
+      Refs.ride(rideId).update({'customerLocation': p.toMap()});
+
   // ---- Either side ------------------------------------------------------
 
   /// Cancel the ride. A captain cancelling should pass their own uid as
